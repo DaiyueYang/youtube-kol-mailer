@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KOL Mailer Admin</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f6fa;color:#333;padding:16px 20px;line-height:1.5;font-size:13px}
+.container{max-width:960px;margin:0 auto}
+h1{font-size:22px;margin-bottom:4px}
+.sub{color:#666;margin-bottom:16px;font-size:13px}
+.tabs{display:flex;border-bottom:2px solid #eee;margin-bottom:12px;flex-wrap:wrap}
+.tab{padding:6px 14px;cursor:pointer;font-size:12px;font-weight:600;color:#666;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap}
+.tab:hover{color:#1a73e8}.tab.active{color:#1a73e8;border-bottom-color:#1a73e8}
+.card{background:#fff;border-radius:8px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.card h2{font-size:14px;margin-bottom:10px;color:#1a73e8;border-bottom:1px solid #eee;padding-bottom:6px}
+.row{display:flex;align-items:center;padding:5px 0;border-bottom:1px solid #f5f5f5;font-size:12px}
+.row:last-child{border-bottom:none}
+.lbl{width:130px;color:#666;flex-shrink:0}
+.val{flex:1;word-break:break-all}
+.badge{display:inline-block;padding:1px 7px;border-radius:3px;font-size:10px;font-weight:700;text-transform:uppercase}
+.b-ok{background:#e6f4ea;color:#137333}.b-fail{background:#fce8e6;color:#c5221f}.b-warn{background:#fef7e0;color:#b06000}.b-info{background:#e8f0fe;color:#1967d2}.b-new{background:#e0f2f1;color:#00695c}
+.btn{display:inline-block;padding:6px 14px;border:none;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;transition:opacity .2s}
+.btn:hover{opacity:.85}.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-p{background:#1a73e8;color:#fff}.btn-s{background:#e8eaed;color:#333}.btn-d{background:#ea4335;color:#fff}
+input.f,select.f,textarea.f{width:100%;padding:5px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px;font-family:inherit;outline:none}
+input.f:focus,select.f:focus,textarea.f:focus{border-color:#1a73e8}
+textarea.f{resize:vertical}
+.ftbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.ftbl th{text-align:left;padding:5px 6px;background:#f8f9fa;border-bottom:2px solid #e0e0e0;font-weight:600;color:#555}
+.ftbl td{padding:4px 6px;border-bottom:1px solid #f0f0f0}
+.ftbl tr:hover td{background:#fafbfd}
+.ok-box{margin-top:8px;padding:6px 12px;background:#e6f4ea;border-radius:5px;font-size:12px;color:#137333}
+.err-box{margin-top:8px;padding:6px 12px;background:#fce8e6;border:1px solid #f28b82;border-radius:5px;font-size:12px;color:#c5221f}
+.warn-box{margin-top:8px;padding:6px 12px;background:#fff3cd;border:1px solid #ffc107;border-radius:5px;font-size:12px}
+.gap{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center}
+.res{margin-top:6px;font-size:12px}
+.loading{color:#999;font-style:italic}
+.tp{display:none}.tp.active{display:block}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:600px){.two{grid-template-columns:1fr}.lbl{width:100px}}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>YouTube KOL Mailer</h1>
+<p class="sub">Admin Dashboard</p>
+
+<div class="tabs" id="tab-bar">
+<div class="tab active" data-tab="account">账户</div>
+<div class="tab" data-tab="bitable">Bitable</div>
+<div class="tab" data-tab="smtp">SMTP</div>
+<div class="tab" data-tab="templates">模板</div>
+<div class="tab" data-tab="send">发送队列</div>
+<div class="tab" data-tab="bot">Bot</div>
+<div class="tab" data-tab="settings">设置</div>
+</div>
+
+<!-- ═══ 1. 账户 ═══ -->
+<div id="tab-account" class="tp active">
+<div class="card">
+<h2>飞书账户</h2>
+<div id="user-area"><p class="loading">检测中...</p></div>
+</div>
+<div class="card">
+<h2>配置概览</h2>
+<div id="user-config-summary"><p class="loading">检测中...</p></div>
+</div>
+</div>
+
+<!-- ═══ 2. Bitable ═══ -->
+<div id="tab-bitable" class="tp">
+<div class="card">
+<h2>创建表格</h2>
+<p style="font-size:12px;color:#666;margin-bottom:8px">以你的飞书身份创建一张新的多维表格，表格归属于你本人。每次点击都会创建一张新表。</p>
+<div class="gap" style="margin-top:0">
+<button class="btn btn-p" onclick="createTable()">创建新表格</button>
+<button class="btn btn-s" onclick="checkBt()">检测当前表格</button>
+<button class="btn btn-s" onclick="openBitable()" style="background:#1a73e8;color:#fff">打开表格</button>
+</div>
+<div id="bt-res" class="res"></div>
+</div>
+<div class="card">
+<h2>我的表格</h2>
+<p style="font-size:12px;color:#666;margin-bottom:6px">选择一张 Base 作为当前使用的多维表格</p>
+<div id="my-tables"><p class="loading">加载中...</p></div>
+</div>
+<div class="card">
+<h2>数据表选择</h2>
+<p style="font-size:12px;color:#666;margin-bottom:6px">选择当前 Base 中要写入的数据表（默认使用第一个）</p>
+<div class="row"><span class="lbl">数据表</span><span class="val"><select class="f" id="subtable-select" onchange="onSubtableChange()"><option value="">-- 请先选择表格 --</option></select></span></div>
+<div id="subtable-res" class="res"></div>
+</div>
+<div class="card">
+<h2>当前表格状态</h2>
+<div id="bt-status"><p class="loading">切换到此页后检测</p></div>
+</div>
+</div>
+
+<!-- ═══ 3. SMTP ═══ -->
+<div id="tab-smtp" class="tp">
+<div class="card">
+<h2>我的 SMTP 配置</h2>
+<div class="row"><span class="lbl">邮箱地址</span><span class="val"><input class="f" id="c-se" type="email" placeholder="your@company.com"></span></div>
+<div class="row"><span class="lbl">邮箱专用密码</span><span class="val"><input class="f" id="c-sp" type="password" placeholder="飞书邮箱客户端专用密码"></span></div>
+<div class="row"><span class="lbl">发件人名称</span><span class="val"><input class="f" id="c-sf" placeholder="Brian from Intent"></span></div>
+<div class="row"><span class="lbl">预览邮箱</span><span class="val"><input class="f" id="c-pe" type="email" placeholder="接收预览邮件的地址"></span></div>
+<div class="gap">
+<button class="btn btn-p" onclick="saveSmtp()">保存 SMTP</button>
+<button class="btn btn-s" onclick="testSmtp()">发送测试预览</button>
+</div>
+<div id="smtp-res" class="res"></div>
+</div>
+</div>
+
+<!-- ═══ 4. 模板 ═══ -->
+<div id="tab-templates" class="tp">
+<div class="card">
+<h2>邮件模板</h2>
+<div class="gap" style="margin-top:0;margin-bottom:8px">
+<button class="btn btn-p" onclick="showNewTmpl()">新建模板</button>
+<button class="btn btn-s" onclick="loadTmpls()">刷新列表</button>
+</div>
+<div id="tmpl-list"><p class="loading">切换到此页后加载</p></div>
+</div>
+<div class="card" id="tmpl-editor" style="display:none">
+<h2 id="te-title">新建模板</h2>
+<div class="row"><span class="lbl">template_key</span><span class="val"><input class="f" id="te-key" placeholder="tmpl_xxx_v1"></span></div>
+<div class="row"><span class="lbl">模板名称</span><span class="val"><input class="f" id="te-name" placeholder="YouTube General Outreach"></span></div>
+<div class="row"><span class="lbl">渠道</span><span class="val"><select class="f" id="te-chan"><option value="all">all</option><option value="youtube">youtube</option><option value="tiktok">tiktok</option></select></span></div>
+<div class="row"><span class="lbl">邮件标题</span><span class="val"><input class="f" id="te-subj" placeholder="Collaboration with {kol_name}"></span></div>
+<div class="row"><span class="lbl">纯文本正文</span><span class="val"><textarea class="f" id="te-text" rows="6" placeholder="Hi {kol_name},&#10;&#10;..."></textarea></span></div>
+<div class="row"><span class="lbl">HTML 正文</span><span class="val"><textarea class="f" id="te-html" rows="6" placeholder="<p>Hi {kol_name},</p>"></textarea></span></div>
+<div class="row"><span class="lbl">变量白名单</span><span class="val"><input class="f" id="te-vars" placeholder='["kol_name","category","operator","today"]'></span></div>
+<div class="gap">
+<button class="btn btn-p" onclick="saveTmpl()">保存模板</button>
+<button class="btn btn-s" onclick="hideTmplEditor()">取消</button>
+</div>
+<div id="te-res" class="res"></div>
+</div>
+<div class="card">
+<h2>模板渲染预览</h2>
+<div class="two">
+<div class="row"><span class="lbl">模板</span><span class="val"><select class="f" id="pv-key"></select></span></div>
+<div class="row"><span class="lbl">kol_name</span><span class="val"><input class="f" id="pv-name" value="TestKOL"></span></div>
+</div>
+<div class="two">
+<div class="row"><span class="lbl">category</span><span class="val"><input class="f" id="pv-cat" value="Gaming"></span></div>
+<div class="row"><span class="lbl">email</span><span class="val"><input class="f" id="pv-email" value="test@example.com"></span></div>
+</div>
+<div class="gap"><button class="btn btn-s" onclick="previewTmpl()">渲染预览</button></div>
+<div id="pv-res" class="res"></div>
+</div>
+</div>
+
+<!-- ═══ 5. 发送队列 ═══ -->
+<div id="tab-send" class="tp">
+<div class="card">
+<h2>待发送 KOL（未联系）</h2>
+<div class="gap" style="margin-top:0;margin-bottom:8px">
+<button class="btn btn-s" onclick="loadPending()">刷新列表</button>
+<button class="btn btn-p" onclick="doBatchSend()">正式发送全部</button>
+</div>
+<div id="sq-pending"><p class="loading">切换到此页后加载</p></div>
+</div>
+<div class="card">
+<h2>预览发送</h2>
+<p style="font-size:11px;color:#666;margin-bottom:6px">取待发送列表第一条 KOL，渲染模板后发到你的预览邮箱</p>
+<div class="two">
+<div class="row"><span class="lbl">模板</span><span class="val"><select class="f" id="sq-tmpl"></select></span></div>
+<div class="row"><span class="lbl">预览邮箱</span><span class="val"><input class="f" id="sq-preview-email" placeholder="你的邮箱"></span></div>
+</div>
+<div class="gap"><button class="btn btn-s" onclick="doPreviewSend()">发送预览</button></div>
+<div id="sq-preview-res" class="res"></div>
+</div>
+<div class="card">
+<h2>最近发送记录（已联系）</h2>
+<div id="sq-history"><p style="color:#999">加载中...</p></div>
+<div id="sq-history-pager" style="margin-top:8px;font-size:12px;display:flex;gap:8px;align-items:center"></div>
+</div>
+</div>
+
+<!-- ═══ 6. Bot ═══ -->
+<div id="tab-bot" class="tp">
+<div class="card">
+<h2>Bot 测试</h2>
+<div class="row"><span class="lbl">API Base</span><span class="val" id="bot-api">-</span></div>
+<div class="row"><span class="lbl">事件订阅</span><span class="val"><code>/api/bot/event</code></span></div>
+<div class="row"><span class="lbl">卡片回调</span><span class="val"><code>/api/bot/card-callback</code></span></div>
+<div class="row"><span class="lbl">chat_id</span><span class="val"><input class="f" id="bot-cid" placeholder="oc_xxx"></span></div>
+<div class="gap">
+<button class="btn btn-s" onclick="botText()">发送测试文本</button>
+<button class="btn btn-p" onclick="botCard()">发送测试卡片</button>
+</div>
+<div id="bot-res" class="res"></div>
+</div>
+<div class="card">
+<h2>Bot 操作日志</h2>
+<div id="bot-log"><p class="loading">切换到此页后加载</p></div>
+<div class="gap"><button class="btn btn-s" onclick="loadBotLog()">刷新日志</button></div>
+</div>
+</div>
+
+<!-- ═══ 7. 设置 ═══ -->
+<div id="tab-settings" class="tp">
+<div class="card">
+<h2>系统状态</h2>
+<div id="sys-status"><p class="loading">切换到此页后加载</p></div>
+</div>
+<div class="card">
+<h2>系统诊断</h2>
+<div class="gap" style="margin-top:0">
+<button class="btn btn-s" onclick="runDiag('bitable')">Bitable 诊断</button>
+<button class="btn btn-s" onclick="runDiag('smtp')">SMTP 诊断</button>
+<button class="btn btn-s" onclick="window.open('/api/health','_blank')">Health Check</button>
+</div>
+<div id="diag-res" class="res"></div>
+</div>
+<div class="card">
+<h2>快速链接</h2>
+<div class="row"><span class="lbl">Swagger</span><span class="val"><a href="/docs" target="_blank">/docs</a></span></div>
+<div class="row"><span class="lbl">用户状态</span><span class="val"><a href="/api/auth/me" target="_blank">/api/auth/me</a></span></div>
+<div class="row"><span class="lbl">模板 API</span><span class="val"><a href="/api/templates" target="_blank">/api/templates</a></span></div>
+<div class="row"><span class="lbl">Bot 日志</span><span class="val"><a href="/api/bot/debug-log" target="_blank">/api/bot/debug-log</a></span></div>
+<div class="row"><span class="lbl">Bitable 诊断</span><span class="val"><a href="/api/debug/bitable" target="_blank">/api/debug/bitable</a></span></div>
+</div>
+</div>
+
+</div>
+<script>
+// ═══════════════ 通用 ═══════════════
+function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function bg(ok,t){return'<span class="badge '+(ok?'b-ok':'b-fail')+'">'+(ok?'PASS':'FAIL')+'</span> '+esc(t)}
+async function api(m,p,b){const o={method:m,headers:{'Content-Type':'application/json'}};if(b)o.body=JSON.stringify(b);const r=await fetch(p,o);return r.json()}
+function sR(id,ok,msg){document.getElementById(id).innerHTML=ok?'<div class="ok-box">'+esc(msg)+'</div>':'<div class="err-box">'+esc(msg)+'</div>'}
+
+// ═══════════════ Tab 切换 ═══════════════
+const _loaded={};
+document.getElementById('tab-bar').addEventListener('click',e=>{
+  const t=e.target.closest('.tab');if(!t)return;
+  const name=t.dataset.tab;
+  document.querySelectorAll('.tp').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  t.classList.add('active');
+  // 按需加载（send 每次都刷新，其他首次加载后缓存）
+  if(name==='templates'&&!_loaded.t){_loaded.t=1;loadTmpls()}
+  if(name==='bitable'){loadMyTables();checkBt()}
+  if(name==='bot'){loadBotApi();if(!_loaded.bl){_loaded.bl=1;loadBotLog()}}
+  if(name==='send'){loadPending();if(!_loaded.sqt){_loaded.sqt=1;loadSqTmpls()}}
+  if(name==='settings'&&!_loaded.ss){_loaded.ss=1;loadSysStatus()}
+});
+
+// ═══════════════ 1. 账户 ═══════════════
+let _u=null;
+async function loadUser(){
+  const a=document.getElementById('user-area');
+  const cs=document.getElementById('user-config-summary');
+  try{
+    const j=await api('GET','/api/auth/me');
+    if(j.logged_in){
+      _u=j.data;const d=j.data;
+      let h='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">';
+      if(d.avatar_url)h+='<img src="'+esc(d.avatar_url)+'" style="width:32px;height:32px;border-radius:50%">';
+      h+='<div><strong>'+esc(d.display_name)+'</strong> <span style="font-size:11px;color:#999">'+esc(d.feishu_open_id)+'</span></div></div>';
+      h+='<div class="gap"><a href="/api/auth/login" class="btn btn-s" style="text-decoration:none">重新登录</a> <button class="btn btn-s" onclick="logout()">退出登录</button></div>';
+      a.innerHTML=h;
+      // 配置概览
+      let c='';
+      c+='<div class="row"><span class="lbl">Bitable</span><span class="val">'+bg(d.has_bitable,d.has_bitable?'已配置 ('+esc(d.bitable_table_id)+')':'未配置 — 请到 Bitable 页签设置')+'</span></div>';
+      c+='<div class="row"><span class="lbl">SMTP</span><span class="val">'+bg(d.has_smtp,d.has_smtp?esc(d.smtp_email):'未配置 — 请到 SMTP 页签设置')+'</span></div>';
+      c+='<div class="row"><span class="lbl">发件人</span><span class="val">'+esc(d.smtp_from_name||'(未设置)')+'</span></div>';
+      c+='<div class="row"><span class="lbl">预览邮箱</span><span class="val">'+esc(d.preview_email||'(未设置)')+'</span></div>';
+      cs.innerHTML=c;
+      // 填充其他 tab 表单
+      _fill('c-bt',d.bitable_app_token);_fill('c-tid',d.bitable_table_id);
+      _fill('c-se',d.smtp_email);_fill('c-sf',d.smtp_from_name);_fill('c-pe',d.preview_email);
+      _fill('sq-preview-email',d.preview_email||d.smtp_email);
+    }else{
+      _u=null;
+      a.innerHTML='<p style="margin-bottom:8px">未登录飞书。登录后可配置独立的 Bitable 和 SMTP。</p><a href="/api/auth/login" class="btn btn-p" style="text-decoration:none">登录飞书</a><p style="margin-top:6px;font-size:11px;color:#999">未登录时使用 .env 全局配置</p>';
+      cs.innerHTML='<p style="color:#999">请先登录飞书</p>';
+    }
+  }catch(e){a.innerHTML='<div class="err-box">'+esc(e.message)+'</div>';cs.innerHTML=''}
+}
+function _fill(id,v){const el=document.getElementById(id);if(el&&!el.value&&v)el.value=v.replace(/\.\.\.$/,'')}
+async function logout(){await api('POST','/api/auth/logout');location.reload()}
+
+// ═══════════════ 2. Bitable ═══════════════
+async function createTable(){
+  sR('bt-res',true,'正在创建表格（用户身份）...');
+  try{
+    const j=await api('POST','/api/admin/create-table');
+    if(j.success){
+      let h='<div class="ok-box">'+esc(j.message)+'</div>';
+      const d=j.data;
+      h+='<div style="font-size:12px;margin-top:6px">';
+      h+='app_token: <code>'+esc(d.app_token)+'</code><br>';
+      h+='table_id: <code>'+esc(d.table_id)+'</code><br>';
+      h+='身份: <span class="badge b-ok">'+esc(d.token_type_used)+'</span><br>';
+      h+='字段: '+d.fields_created+' 个已创建</div>';
+      document.getElementById('bt-res').innerHTML=h;
+    }else{
+      let h='<div class="err-box">'+esc(j.message)+'</div>';
+      if(j.debug)h+='<div style="font-size:11px;color:#999;margin-top:4px">debug: '+esc(JSON.stringify(j.debug))+'</div>';
+      document.getElementById('bt-res').innerHTML=h;
+    }
+    loadMyTables();loadUser();checkBt();
+  }catch(e){sR('bt-res',false,e.message)}
+}
+async function loadMyTables(){
+  const a=document.getElementById('my-tables');
+  try{
+    const j=await api('GET','/api/admin/my-tables');
+    const ts=j.data||[];
+    if(!ts.length){a.innerHTML='<p style="color:#999">暂无表格。点击上方「创建新表格」创建。</p>';return}
+    let h='';
+    for(const t of ts){
+      const sel=t.is_selected;
+      h+='<div class="row" style="padding:6px 0">';
+      h+='<span class="val" style="flex:1">';
+      h+='<strong>'+esc(t.base_name)+'</strong>';
+      h+=' <span style="font-size:11px;color:#999">'+esc(t.created_at)+'</span>';
+      if(sel)h+=' <span class="badge b-ok">当前使用</span>';
+      h+='</span>';
+      h+='<span style="display:flex;gap:4px">';
+      if(!sel)h+='<button class="btn btn-s" style="padding:2px 10px;font-size:11px" onclick="selectTable(\''+esc(t.app_token)+'\')">使用此表</button>';
+      if(t.base_url)h+='<button class="btn btn-s" style="padding:2px 10px;font-size:11px" onclick="window.open(\''+esc(t.base_url)+(t.table_id?'?table='+esc(t.table_id):'')+'\',\'_blank\')">打开</button>';
+      h+='<button class="btn btn-s" style="padding:2px 10px;font-size:11px;color:#c5221f" onclick="deleteTable(\''+esc(t.app_token)+'\')">移除</button>';
+      h+='</span></div>';
+    }
+    a.innerHTML=h;
+    // 为当前选中的表加载数据表列表
+    const selected=ts.find(t=>t.is_selected);
+    if(selected)loadSubtables(selected.app_token);
+  }catch(e){a.innerHTML='<div class="err-box">'+esc(e.message)+'</div>'}
+}
+async function deleteTable(appToken){
+  if(!confirm('确认移除此表格？（不会删除飞书中的实际表格）'))return;
+  const j=await api('POST','/api/admin/delete-table',{app_token:appToken});
+  sR('bt-res',j.success,j.message);
+  loadMyTables();loadUser();checkBt();
+}
+async function selectTable(appToken){
+  const j=await api('POST','/api/admin/select-table',{app_token:appToken});
+  sR('bt-res',j.success,j.message);
+  loadMyTables();loadUser();loadSubtables(appToken);checkBt();
+}
+async function loadSubtables(appToken){
+  const sel=document.getElementById('subtable-select');
+  if(!appToken){sel.innerHTML='<option value="">-- 请先选择表格 --</option>';return}
+  sel.innerHTML='<option value="">加载中...</option>';
+  try{
+    const j=await api('GET','/api/admin/tables-in-base?app_token='+encodeURIComponent(appToken));
+    if(!j.success||!j.data?.length){sel.innerHTML='<option value="">-- 无数据表 --</option>';return}
+    sel.innerHTML='';
+    for(const t of j.data){
+      const opt=document.createElement('option');opt.value=t.table_id;opt.textContent=t.name+' ('+t.table_id+')';sel.appendChild(opt);
+    }
+    // 默认选中第一个并保存
+    if(j.data.length>0){
+      sel.value=j.data[0].table_id;
+      await api('POST','/api/admin/select-subtable',{table_id:j.data[0].table_id});
+    }
+  }catch(e){sel.innerHTML='<option value="">加载失败</option>'}
+}
+async function onSubtableChange(){
+  const tid=document.getElementById('subtable-select').value;
+  if(!tid)return;
+  const j=await api('POST','/api/admin/select-subtable',{table_id:tid});
+  sR('subtable-res',j.success,j.message);
+  checkBt();
+}
+async function openBitable(){
+  try{
+    const j=await api('GET','/api/admin/bitable-url');
+    if(j.success&&j.url){window.open(j.url,'_blank')}
+    else{sR('bt-res',false,j.message||'未选择表格')}
+  }catch(e){sR('bt-res',false,e.message)}
+}
+async function checkBt(){
+  const a=document.getElementById('bt-status');a.innerHTML='<p class="loading">检测中...</p>';
+  try{const j=await api('GET','/api/admin/bitable-status');const d=j.data;let h='';
+    const idBadge=d.identity==='user'?'<span class="badge b-ok">用户身份</span>':d.app_token?'<span class="badge b-warn">应用身份</span>':'';
+    if(idBadge)h+='<div class="row"><span class="lbl">访问身份</span><span class="val">'+idBadge+(d.has_user_token?'':' <span style="font-size:11px;color:#c5221f">(用户令牌无效，请重新登录)</span>')+'</span></div>';
+    h+='<div class="row"><span class="lbl">配置</span><span class="val">'+bg(d.config_ok,d.config_ok?'OK':'未选择表格')+'</span></div>';
+    if(d.config_ok){
+      h+='<div class="row"><span class="lbl">Token</span><span class="val">'+bg(d.token_ok,d.token_ok?'OK':'失败')+'</span></div>';
+      h+='<div class="row"><span class="lbl">KOL 表</span><span class="val">'+bg(d.table_ok,d.table_ok?d.table_id:'未找到')+'</span></div>';
+      h+='<div class="row"><span class="lbl">字段</span><span class="val">'+bg(d.fields_ok,d.fields_ok?(d.existing_fields?.length+' 个'):'缺 '+(d.missing_fields?.length||'?')+' 个')+'</span></div>';
+    }
+    if(d.error)h+='<div class="err-box">'+esc(d.error)+'</div>';
+    if(d.config_ok&&d.token_ok&&d.table_ok&&d.fields_ok)h+='<div class="ok-box">Bitable 就绪</div>';
+    a.innerHTML=h;
+  }catch(e){a.innerHTML='<div class="err-box">'+esc(e.message)+'</div>'}
+}
+
+// ═══════════════ 3. SMTP ═══════════════
+async function saveSmtp(){
+  const d={smtp_email:document.getElementById('c-se').value.trim(),smtp_from_name:document.getElementById('c-sf').value.trim(),preview_email:document.getElementById('c-pe').value.trim()};
+  const pw=document.getElementById('c-sp').value.trim();if(pw)d.smtp_password=pw;
+  const j=await api('POST','/api/auth/settings',d);sR('smtp-res',j.success,j.message);loadUser();
+}
+async function testSmtp(){
+  sR('smtp-res',true,'发送测试预览中...');
+  try{const j=await api('POST','/api/mail/preview-send',{template_key:'tmpl_youtube_general_v1',variables:{kol_name:'TestKOL',email:'test@example.com',category:'Gaming',operator:_u?.display_name||'admin'}});
+    sR('smtp-res',j.success,j.message+(j.data?.sent_to?' -> '+j.data.sent_to:''));
+  }catch(e){sR('smtp-res',false,e.message)}
+}
+
+// ═══════════════ 4. 模板 ═══════════════
+let _ek='';
+async function loadTmpls(){
+  const a=document.getElementById('tmpl-list');a.innerHTML='<p class="loading">加载中...</p>';
+  try{const j=await api('GET','/api/templates?enabled_only=false');const ts=j.data?.templates||[];
+    if(!ts.length){a.innerHTML='<p>暂无模板。点击「新建模板」创建。</p>';_updatePvSel([]);return}
+    let h='<table class="ftbl"><tr><th>Key</th><th>名称</th><th>渠道</th><th>状态</th><th>更新时间</th><th>操作</th></tr>';
+    for(const t of ts){
+      const en=t.enabled?'<span class="badge b-ok">启用</span>':'<span class="badge b-fail">停用</span>';
+      h+='<tr><td style="font-family:monospace;font-size:11px">'+esc(t.template_key)+'</td><td>'+esc(t.template_name)+'</td><td>'+esc(t.channel)+'</td><td>'+en+'</td><td style="font-size:11px;color:#999">'+esc(t.updated_at||'')+'</td>';
+      h+='<td style="white-space:nowrap"><button class="btn btn-s" style="padding:2px 8px;font-size:11px" onclick="editTmpl(\''+esc(t.template_key)+'\')">编辑</button> ';
+      h+=(t.enabled?'<button class="btn btn-s" style="padding:2px 8px;font-size:11px" onclick="toggleTmpl(\''+esc(t.template_key)+'\',0)">停用</button>':'<button class="btn btn-s" style="padding:2px 8px;font-size:11px" onclick="toggleTmpl(\''+esc(t.template_key)+'\',1)">启用</button>');
+      h+=' <button class="btn btn-s" style="padding:2px 8px;font-size:11px;color:#c5221f" onclick="deleteTmpl(\''+esc(t.template_key)+'\')">删除</button>';
+      h+='</td></tr>'}
+    a.innerHTML=h+'</table>';_updatePvSel(ts);
+  }catch(e){a.innerHTML='<div class="err-box">'+esc(e.message)+'</div>'}
+}
+function _updatePvSel(ts){
+  const s=document.getElementById('pv-key');s.innerHTML='<option value="">-- 选择模板 --</option>';
+  for(const t of ts){if(!t.enabled)continue;s.innerHTML+='<option value="'+esc(t.template_key)+'">'+esc(t.template_name)+'</option>'}
+}
+function showNewTmpl(){_ek='';document.getElementById('tmpl-editor').style.display='';document.getElementById('te-title').textContent='新建模板';
+  ['te-key','te-name','te-subj','te-text','te-html','te-vars'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('te-key').readOnly=false;document.getElementById('te-res').innerHTML='';
+  document.getElementById('te-vars').value='["kol_name","category","operator","today"]'}
+async function editTmpl(key){
+  try{const j=await api('GET','/api/templates/'+encodeURIComponent(key));if(!j.success){alert('加载失败');return}const t=j.data;
+    _ek=key;document.getElementById('tmpl-editor').style.display='';document.getElementById('te-title').textContent='编辑: '+key;
+    document.getElementById('te-key').value=t.template_key;document.getElementById('te-key').readOnly=true;
+    document.getElementById('te-name').value=t.template_name;document.getElementById('te-subj').value=t.subject;
+    document.getElementById('te-text').value=t.body_text;document.getElementById('te-html').value=t.body_html;
+    document.getElementById('te-vars').value=t.variables_json;document.getElementById('te-chan').value=t.channel;
+    document.getElementById('te-res').innerHTML='';
+    document.getElementById('tmpl-editor').scrollIntoView({behavior:'smooth'});
+  }catch(e){alert('加载模板失败: '+e.message)}
+}
+function hideTmplEditor(){document.getElementById('tmpl-editor').style.display='none';_ek=''}
+async function saveTmpl(){
+  const key=document.getElementById('te-key').value.trim();
+  const name=document.getElementById('te-name').value.trim();
+  if(!key){sR('te-res',false,'template_key 不能为空');return}
+  if(!name){sR('te-res',false,'模板名称不能为空');return}
+  const d={template_key:key,template_name:name,subject:document.getElementById('te-subj').value,
+    body_text:document.getElementById('te-text').value,body_html:document.getElementById('te-html').value,
+    variables_json:document.getElementById('te-vars').value.trim()||'["kol_name"]',channel:document.getElementById('te-chan').value};
+  try{let j;
+    if(_ek){j=await api('PUT','/api/templates/'+encodeURIComponent(_ek),d)}
+    else{j=await api('POST','/api/templates',d)}
+    if(j.detail){sR('te-res',false,j.detail)}
+    else{sR('te-res',j.success!==false,j.message||'已保存');if(j.success!==false)loadTmpls()}
+  }catch(e){sR('te-res',false,e.message)}
+}
+async function deleteTmpl(key){
+  if(!confirm('确认永久删除模板 '+key+'？此操作不可撤销。'))return;
+  try{const j=await api('DELETE','/api/templates/'+encodeURIComponent(key)+'?hard=true');
+    sR('te-res',j.success!==false,j.message||'已删除');loadTmpls();
+  }catch(e){sR('te-res',false,e.message)}
+}
+async function toggleTmpl(key,en){
+  try{await api('PUT','/api/templates/'+encodeURIComponent(key),{enabled:en});loadTmpls()}catch(e){alert(e.message)}
+}
+async function previewTmpl(){
+  const key=document.getElementById('pv-key').value;if(!key){sR('pv-res',false,'请选择模板');return}
+  const vars={kol_name:document.getElementById('pv-name').value,category:document.getElementById('pv-cat').value,
+    email:document.getElementById('pv-email').value,operator:_u?.display_name||'admin',source_url:'https://youtube.com/@test'};
+  try{const j=await api('POST','/api/templates/preview',{template_key:key,variables:vars});
+    if(j.success){const d=j.data;let h='<div style="margin-top:8px"><strong>Subject:</strong> '+esc(d.subject)+'<hr style="margin:6px 0"><strong>Body (text):</strong><div style="background:#f8f9fa;padding:8px;border-radius:4px;margin-top:4px;white-space:pre-wrap;font-size:12px">'+esc(d.body_text)+'</div>';
+      if(d.body_html)h+='<hr style="margin:6px 0"><strong>Body (HTML preview):</strong><div style="background:#f8f9fa;padding:8px;border-radius:4px;margin-top:4px;font-size:12px">'+d.body_html+'</div>';
+      if(d.warnings?.length)h+='<div class="warn-box">Warnings: '+d.warnings.map(esc).join(', ')+'</div>';
+      h+='</div>';document.getElementById('pv-res').innerHTML=h;
+    }else sR('pv-res',false,j.detail||j.message||'渲染失败');
+  }catch(e){sR('pv-res',false,e.message)}
+}
+
+// ═══════════════ 5. 发送队列 ═══════════════
+let _pendingKols=[];
+let _contactedKols=[];
+let _histPage=1;
+const _histPerPage=20;
+
+async function loadPending(){
+  const a=document.getElementById('sq-pending');a.innerHTML='<p class="loading">正在从飞书多维表格加载...</p>';
+  try{
+    const j=await api('GET','/api/admin/send-queue');
+    if(!j.success){a.innerHTML='<div class="err-box">'+esc(j.message)+'</div>';return}
+    const d=j.data||{};
+    _pendingKols=d.pending||[];
+    _contactedKols=d.contacted||[];
+
+    // 统计
+    let h='<div style="display:flex;gap:12px;margin-bottom:8px;flex-wrap:wrap">';
+    h+='<span><span class="badge b-info">待发送</span> '+_pendingKols.length+'</span>';
+    h+='<span><span class="badge b-ok">已发送</span> '+_contactedKols.length+'</span>';
+    h+='<span style="color:#666">总计 '+(d.total||0)+'</span></div>';
+
+    if(!_pendingKols.length){h+='<div class="ok-box">没有待发送的 KOL（全部已联系或表为空）</div>';a.innerHTML=h;renderHistory();return}
+
+    // 待发送列表（只有未联系）
+    h+='<table class="ftbl"><tr><th>KOL</th><th>邮箱</th><th>模板</th></tr>';
+    for(const k of _pendingKols.slice(0,50)){
+      h+='<tr><td>'+esc(k.kol_name)+'</td><td>'+esc(k.email||'(无)')+'</td><td style="font-size:11px">'+esc(k.template_key)+'</td></tr>';}
+    if(_pendingKols.length>50)h+='<tr><td colspan="3" style="color:#999;text-align:center">... 及其他 '+(_pendingKols.length-50)+' 条</td></tr>';
+    a.innerHTML=h+'</table>';
+    renderHistory();
+  }catch(e){a.innerHTML='<div class="err-box">加载失败: '+esc(e.message)+'</div>'}
+}
+
+function renderHistory(){
+  const area=document.getElementById('sq-history');
+  const pager=document.getElementById('sq-history-pager');
+  if(!_contactedKols.length){area.innerHTML='<p style="color:#999">暂无已发送记录</p>';pager.innerHTML='';return}
+
+  // 分页
+  const total=_contactedKols.length;
+  const pages=Math.ceil(total/_histPerPage);
+  if(_histPage>pages)_histPage=pages;
+  if(_histPage<1)_histPage=1;
+  const start=(_histPage-1)*_histPerPage;
+  const slice=_contactedKols.slice(start,start+_histPerPage);
+
+  let h='<table class="ftbl"><tr><th>KOL</th><th>邮箱</th><th>模板</th><th>发送时间</th></tr>';
+  for(const k of slice){
+    h+='<tr><td>'+esc(k.kol_name)+'</td><td>'+esc(k.email||'')+'</td><td style="font-size:11px">'+esc(k.template_key)+'</td><td style="font-size:11px;color:#666">'+esc(k.sent_at||'')+'</td></tr>';}
+  area.innerHTML=h+'</table>';
+
+  // 分页控件
+  pager.innerHTML='<button class="btn btn-s" style="padding:2px 10px;font-size:11px" onclick="_histPage--;renderHistory()" '+((_histPage<=1)?'disabled':'')+'>上一页</button>'+
+    ' <span style="font-size:11px;color:#666">第 '+_histPage+'/'+pages+' 页 (共 '+total+' 条)</span> '+
+    '<button class="btn btn-s" style="padding:2px 10px;font-size:11px" onclick="_histPage++;renderHistory()" '+((_histPage>=pages)?'disabled':'')+'>下一页</button>';
+}
+
+function loadSqTmpls(){
+  api('GET','/api/templates?channel=youtube').then(j=>{
+    const s=document.getElementById('sq-tmpl');s.innerHTML='<option value="">-- 自动 --</option>';
+    for(const t of(j.data?.templates||[])){if(!t.enabled)continue;s.innerHTML+='<option value="'+esc(t.template_key)+'">'+esc(t.template_name)+'</option>'}
+  }).catch(()=>{});
+}
+async function doPreviewSend(){
+  sR('sq-preview-res',true,'正在发送预览...');
+  try{
+    const tmpl=document.getElementById('sq-tmpl').value;
+    const email=document.getElementById('sq-preview-email').value.trim();
+    const kol=_pendingKols[0]||{kol_name:'TestKOL',email:'test@example.com',category:'Test'};
+    const vars={...kol,operator:_u?.display_name||'admin'};
+    if(email)vars.preview_email=email;
+    const j=await api('POST','/api/mail/preview-send',{template_key:tmpl||kol.template_key||'tmpl_youtube_general_v1',variables:vars});
+    sR('sq-preview-res',j.success,j.message+(j.data?.sent_to?' -> '+j.data.sent_to:''));
+  }catch(e){sR('sq-preview-res',false,e.message)}
+}
+async function doBatchSend(){
+  if(!_pendingKols.length){sR('sq-preview-res',false,'没有待发送的 KOL');return}
+  if(!confirm('确认正式发送 '+_pendingKols.length+' 封邮件？')){return}
+  const ids=_pendingKols.map(k=>k.kol_id).filter(Boolean);
+  if(!ids.length){sR('sq-preview-res',false,'没有可发送的 KOL (缺少 kol_id)');return}
+  const area=document.getElementById('sq-history');
+  area.innerHTML='<p class="loading">正式发送中... 请勿关闭页面</p>';
+  try{
+    const j=await api('POST','/api/mail/send',{kol_ids:ids});
+    let h='<p><strong>'+esc(j.message)+'</strong></p>';
+    if(j.data){const d=j.data;
+      h+='<div class="row"><span class="lbl">成功</span><span class="val"><span class="badge b-ok">'+d.sent+'</span></span></div>';
+      h+='<div class="row"><span class="lbl">失败</span><span class="val"><span class="badge '+(d.failed?'b-fail':'b-ok')+'">'+d.failed+'</span></span></div>';
+      h+='<div class="row"><span class="lbl">跳过</span><span class="val">'+d.skipped+'</span></div>';
+      const fails=(d.results||[]).filter(r=>r.status==='failed');
+      if(fails.length){h+='<table class="ftbl" style="margin-top:6px"><tr><th>KOL ID</th><th>原因</th></tr>';
+        for(const f of fails.slice(0,10))h+='<tr><td style="font-size:11px">'+esc(f.kol_id)+'</td><td>'+esc(f.detail)+'</td></tr>';
+        h+='</table>'}
+    }
+    area.innerHTML=h;
+    // 刷新列表
+    setTimeout(loadPending,1500);
+  }catch(e){area.innerHTML='<div class="err-box">'+esc(e.message)+'</div>'}
+}
+
+// ═══════════════ 6. Bot ═══════════════
+async function loadBotApi(){try{const j=await api('GET','/api/settings');document.getElementById('bot-api').innerHTML='<span class="badge b-ok">OK</span> '+esc(j.api_base)}catch(e){document.getElementById('bot-api').innerHTML='<span class="badge b-fail">ERR</span>'}}
+async function botText(){const c=document.getElementById('bot-cid').value.trim();if(!c){sR('bot-res',false,'请输入 chat_id');return}const j=await api('POST','/api/bot/test-text',{chat_id:c});sR('bot-res',j.success,j.message)}
+async function botCard(){const c=document.getElementById('bot-cid').value.trim();if(!c){sR('bot-res',false,'请输入 chat_id');return}const j=await api('POST','/api/bot/test-card',{chat_id:c});sR('bot-res',j.success,j.message)}
+async function loadBotLog(){
+  const a=document.getElementById('bot-log');
+  try{const j=await api('GET','/api/bot/debug-log');const ls=j.data||[];
+    if(!ls.length){a.innerHTML='<p style="color:#999">暂无</p>';return}
+    let h='<table class="ftbl"><tr><th>时间</th><th>动作</th><th>用户</th><th>详情</th></tr>';
+    for(const l of ls)h+='<tr><td style="white-space:nowrap;font-size:11px">'+esc(l.time)+'</td><td>'+esc(l.action)+'</td><td>'+esc(l.operator)+(l.user_id?' ('+l.user_id+')':'')+'</td><td style="font-size:11px">'+esc(l.detail)+'</td></tr>';
+    a.innerHTML=h+'</table>';
+  }catch(e){a.innerHTML='<div class="err-box">'+esc(e.message)+'</div>'}
+}
+
+// ═══════════════ 7. 设置 ═══════════════
+async function loadSysStatus(){
+  const a=document.getElementById('sys-status');a.innerHTML='<p class="loading">加载中...</p>';
+  try{
+    const [health,settings,authStatus]=await Promise.all([
+      api('GET','/api/health'),api('GET','/api/settings'),api('GET','/api/auth/status')]);
+    let h='';
+    h+='<div class="row"><span class="lbl">后端状态</span><span class="val">'+bg(health.status==='ok','v'+health.version)+'</span></div>';
+    h+='<div class="row"><span class="lbl">API Base</span><span class="val">'+esc(settings.api_base)+'</span></div>';
+    h+='<div class="row"><span class="lbl">SMTP Host</span><span class="val">'+esc(settings.smtp_host)+':'+settings.smtp_port+'</span></div>';
+    h+='<div class="row"><span class="lbl">每日限额</span><span class="val">'+settings.daily_limit+'</span></div>';
+    h+='<div class="row"><span class="lbl">发送间隔</span><span class="val">'+settings.send_delay_min+'-'+settings.send_delay_max+'s</span></div>';
+    h+='<div class="row"><span class="lbl">用户登录</span><span class="val">'+bg(authStatus.logged_in,authStatus.logged_in?authStatus.display_name:'未登录')+'</span></div>';
+    h+='<div class="row"><span class="lbl">Bitable</span><span class="val">'+bg(authStatus.has_bitable,authStatus.has_bitable?'已配置':'未配置')+'</span></div>';
+    h+='<div class="row"><span class="lbl">SMTP</span><span class="val">'+bg(authStatus.has_smtp,authStatus.has_smtp?'已配置':'未配置')+'</span></div>';
+    if(authStatus.message&&authStatus.message!=='配置完整')h+='<div class="warn-box">'+esc(authStatus.message)+'</div>';
+    a.innerHTML=h;
+  }catch(e){a.innerHTML='<div class="err-box">'+esc(e.message)+'</div>'}
+}
+async function runDiag(type){
+  const a=document.getElementById('diag-res');a.innerHTML='<p class="loading">诊断中...</p>';
+  try{const j=await api('GET','/api/debug/'+type);
+    if(j.steps){let h='<table class="ftbl"><tr><th>步骤</th><th>结果</th></tr>';
+      for(const s of j.steps)h+='<tr><td>'+esc(s.step)+'</td><td><span class="badge '+(s.status==='PASS'?'b-ok':s.status==='INFO'?'b-info':'b-fail')+'">'+esc(s.status)+'</span></td></tr>';
+      a.innerHTML=h+'</table>';
+    }else a.innerHTML='<pre style="font-size:11px;background:#f8f9fa;padding:8px;border-radius:4px;overflow-x:auto">'+esc(JSON.stringify(j,null,2))+'</pre>';
+  }catch(e){a.innerHTML='<div class="err-box">'+esc(e.message)+'</div>'}
+}
+
+// ═══════════════ 启动 ═══════════════
+document.addEventListener('DOMContentLoaded',()=>{loadUser()});
+</script>
+</body>
+</html>
