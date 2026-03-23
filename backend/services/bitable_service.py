@@ -17,7 +17,7 @@ import httpx
 
 from config import settings
 from models.constants import (
-    KolStatus, BITABLE_FIELD_MAP, BACKEND_TO_BITABLE,
+    BITABLE_FIELD_MAP, BACKEND_TO_BITABLE,
     KOL_TABLE_NAME, KOL_TABLE_FIELDS,
     KOL_CONTACT_NOT_CONTACTED, KOL_CONTACT_CONTACTED,
 )
@@ -370,54 +370,6 @@ class BitableService:
         if data.get("code") != 0:
             raise RuntimeError(self._format_api_error("Bitable update", resp.status_code, data))
 
-    async def list_by_status(self, statuses: list[str], operator: str = None) -> list:
-        url = f"{await self._records_url()}/search"
-        headers = await self._headers()
-
-        # Feishu 的 "is" operator 只支持单值。多个 status 需要用 OR 连接多个条件。
-        if len(statuses) == 1:
-            status_filter = {
-                "conjunction": "and",
-                "conditions": [{"field_name": "status", "operator": "is", "value": [statuses[0]]}],
-            }
-        else:
-            # 多个 status：用 OR 连接
-            status_filter = {
-                "conjunction": "or",
-                "conditions": [{"field_name": "status", "operator": "is", "value": [s]} for s in statuses],
-            }
-
-        # 如果有 operator 过滤，需要嵌套：(status OR filter) AND operator
-        if operator:
-            payload = {
-                "filter": {
-                    "conjunction": "and",
-                    "conditions": [
-                        status_filter,
-                        {"field_name": "operator", "operator": "is", "value": [operator]},
-                    ],
-                },
-                "page_size": 500,
-            }
-        else:
-            payload = {"filter": status_filter, "page_size": 500}
-        all_records = []
-        page_token = None
-        async with httpx.AsyncClient() as client:
-            while True:
-                if page_token:
-                    payload["page_token"] = page_token
-                resp = await client.post(url, headers=headers, json=payload, timeout=15)
-                data = resp.json()
-                if data.get("code") != 0:
-                    break
-                for item in data.get("data", {}).get("items", []):
-                    all_records.append(self._from_bitable_record(item))
-                if not data.get("data", {}).get("has_more", False):
-                    break
-                page_token = data["data"].get("page_token")
-        return all_records
-
     async def list_all_kols(self) -> list:
         url = f"{await self._records_url()}/search"
         headers = await self._headers()
@@ -493,23 +445,21 @@ class BitableService:
             result.pop("_record_id", None)
         return result
 
-    async def update_kol_status(self, kol_id: str, new_status: str, last_error: str = "", sent_at: str = "") -> bool:
+    async def update_kol_contact_status(
+        self, kol_id: str, contact_status: str, last_error: str = "",
+    ) -> bool:
+        """
+        更新 KOL 的联系状态（kol_contact_status）。
+        contact_status: KOL_CONTACT_NOT_CONTACTED 或 KOL_CONTACT_CONTACTED
+        """
         existing = await self.search_by_kol_id(kol_id)
         if not existing:
             raise ValueError(f"KOL '{kol_id}' not found")
-        current = existing.get("status", "")
-        if current and not KolStatus.can_transition(current, new_status):
-            raise ValueError(f"Invalid transition: '{current}' -> '{new_status}'")
-        update_data = {"status": new_status}
+        update_data = {"kol_contact_status": contact_status}
         if last_error is not None:
             update_data["last_error"] = last_error
-        if sent_at:
-            update_data["sent_at"] = sent_at
-        elif new_status == KolStatus.SENT:
+        if contact_status == KOL_CONTACT_CONTACTED:
             update_data["sent_at"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-        # 发送成功时自动标记为"已联系"
-        if new_status == KolStatus.SENT:
-            update_data["kol_contact_status"] = KOL_CONTACT_CONTACTED
         await self.update_record(existing["_record_id"], update_data)
         return True
 

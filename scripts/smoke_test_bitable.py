@@ -14,9 +14,9 @@ Bitable 集成冒烟测试
     1. 获取 tenant_access_token
     2. 创建一条测试 KOL 记录
     3. 按 kol_id 查询该记录
-    4. 更新状态为 preview_sent
+    4. 更新联系状态为"已联系"
     5. 再次查询确认状态已更新
-    6. 查询 pending 列表
+    6. 查询待发送列表
 """
 import sys
 import os
@@ -34,6 +34,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
 async def run_tests():
     from services.bitable_service import BitableService
+    from models.constants import KOL_CONTACT_NOT_CONTACTED, KOL_CONTACT_CONTACTED
     from config import settings
 
     # 检查配置
@@ -66,7 +67,7 @@ async def run_tests():
     except Exception as e:
         print(f"  FAIL - {e}")
         failed += 1
-        return False  # token 失败，后续无法继续
+        return False
 
     # Test 2: 创建/更新 KOL
     print("\n[TEST 2] Upsert KOL...")
@@ -106,27 +107,25 @@ async def run_tests():
         print(f"  FAIL - {e}")
         failed += 1
 
-    # Test 4: 更新状态
-    print("\n[TEST 4] Update status to preview_sent...")
+    # Test 4: 更新联系状态为"已联系"
+    print("\n[TEST 4] Update kol_contact_status to '已联系'...")
     try:
-        await svc.update_kol_status(kol_id, "preview_sent")
+        await svc.update_kol_contact_status(kol_id, KOL_CONTACT_CONTACTED)
         kol = await svc.get_kol_by_id(kol_id)
-        assert kol["status"] == "preview_sent", f"Status mismatch: {kol['status']}"
-        print(f"  PASS - status: {kol['status']}")
+        assert kol["kol_contact_status"] == KOL_CONTACT_CONTACTED, f"Status mismatch: {kol.get('kol_contact_status')}"
+        print(f"  PASS - kol_contact_status: {kol['kol_contact_status']}")
         passed += 1
     except Exception as e:
         print(f"  FAIL - {e}")
         failed += 1
 
-    # Test 5: 恢复为 pending（通过 confirmed -> sending -> failed -> pending 路径模拟不了，
-    # 直接将 preview_sent -> confirmed -> sending -> failed -> pending）
-    # 简化：把状态改回 skipped（终态）来验证
-    print("\n[TEST 5] Update status preview_sent -> skipped...")
+    # Test 5: 重置为"未联系"
+    print("\n[TEST 5] Reset kol_contact_status to '未联系'...")
     try:
-        await svc.update_kol_status(kol_id, "skipped")
+        await svc.update_kol_contact_status(kol_id, KOL_CONTACT_NOT_CONTACTED)
         kol = await svc.get_kol_by_id(kol_id)
-        assert kol["status"] == "skipped"
-        print(f"  PASS - status: {kol['status']}")
+        assert kol["kol_contact_status"] == KOL_CONTACT_NOT_CONTACTED
+        print(f"  PASS - kol_contact_status: {kol['kol_contact_status']}")
         passed += 1
     except Exception as e:
         print(f"  FAIL - {e}")
@@ -136,7 +135,7 @@ async def run_tests():
     print("\n[TEST 6] List pending KOLs...")
     try:
         pending = await svc.list_pending_kols()
-        print(f"  PASS - found {len(pending)} pending/failed KOLs")
+        print(f"  PASS - found {len(pending)} pending KOLs")
         passed += 1
     except Exception as e:
         print(f"  FAIL - {e}")

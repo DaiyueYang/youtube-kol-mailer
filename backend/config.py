@@ -70,14 +70,9 @@ class Settings:
     PREVIEW_RECEIVER_EMAIL: str = _get("PREVIEW_RECEIVER_EMAIL", "")
     SEND_DELAY_MIN: int = _get_int("SEND_DELAY_MIN", 5)
     SEND_DELAY_MAX: int = _get_int("SEND_DELAY_MAX", 15)
-    DAILY_LIMIT: int = _get_int("DAILY_LIMIT", 20)
 
     # ── OAuth ──
     OAUTH_REDIRECT_URI: str = _get("OAUTH_REDIRECT_URI", "https://api.youtube-kol.com/api/auth/callback")
-
-    # ── Admin 页面 ──
-    ADMIN_USERNAME: str = _get("ADMIN_USERNAME", "admin")
-    ADMIN_PASSWORD: str = _get("ADMIN_PASSWORD", "change_me")
 
     def get_api_base(self) -> str:
         """

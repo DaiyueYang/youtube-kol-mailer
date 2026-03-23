@@ -3,11 +3,13 @@
 
 可复用的校验函数，在预览发送和正式发送前统一调用。
 校验不通过时返回明确的错误列表，不静默跳过。
+
+smtp 参数：调用方传入当前用户实际使用的 SmtpService 实例，
+校验来源与实际发送来源保持一致。
 """
 import re
 from services.template_service import template_service
 from services.render_service import render_template
-from services.smtp_service import smtp_service
 
 # 基本邮箱格式
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
@@ -21,9 +23,15 @@ def validate_email_format(email: str) -> bool:
 def validate_before_send(
     kol_data: dict,
     template_key: str,
+    smtp=None,
 ) -> dict:
     """
     发送前完整校验。
+
+    参数:
+        kol_data: KOL 数据字典
+        template_key: 模板标识
+        smtp: 当前用户实际使用的 SmtpService 实例（必须与发送时一致）
 
     返回:
     {
@@ -69,10 +77,13 @@ def validate_before_send(
     if not rendered["body_text"].strip() and not rendered["body_html"].strip():
         errors.append("Rendered body is empty (both text and html)")
 
-    # 4. SMTP 配置是否完整
-    smtp_missing = smtp_service.check_config()
-    if smtp_missing:
-        errors.append(f"SMTP config incomplete, missing: {', '.join(smtp_missing)}")
+    # 4. SMTP 配置是否完整（使用调用方传入的实际 smtp 实例）
+    if smtp:
+        smtp_missing = smtp.check_config()
+        if smtp_missing:
+            errors.append(f"SMTP config incomplete, missing: {', '.join(smtp_missing)}")
+    else:
+        errors.append("SMTP not configured")
 
     return {
         "valid": len(errors) == 0,

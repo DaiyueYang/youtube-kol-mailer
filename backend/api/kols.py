@@ -4,25 +4,28 @@ KOL 管理 API
 - POST   /api/kols/upsert               写入或更新单条 KOL 到 Bitable
 - GET    /api/kols/pending               拉取待发送 KOL 列表
 - GET    /api/kols/{kol_id}              查询单条 KOL
-- POST   /api/kols/{kol_id}/status       更新 KOL 状态
+- POST   /api/kols/{kol_id}/contact-status   更新 KOL 联系状态（kol_contact_status）
 
 支持用户级 Bitable 隔离：如果当前用户已登录并配置了自己的 Bitable，
 则操作该用户的 Bitable；否则 fallback 到全局配置。
 """
 import logging
 from fastapi import APIRouter, HTTPException, Request
-from models.schemas import KolUpsertRequest, KolStatusUpdateRequest
-from models.constants import KolStatus
+from models.schemas import KolUpsertRequest, KolContactStatusUpdateRequest
+from models.constants import KOL_CONTACT_NOT_CONTACTED, KOL_CONTACT_CONTACTED
 from services.user_context import get_user_context
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+_VALID_CONTACT_STATUSES = {KOL_CONTACT_NOT_CONTACTED, KOL_CONTACT_CONTACTED}
 
 
 @router.post("/kols/upsert")
 async def upsert_kol(req: KolUpsertRequest, request: Request):
     """写入或更新单条 KOL 记录到飞书 Bitable。"""
     ctx = get_user_context(request)
+    await ctx.ensure_fresh_token()
     bitable = ctx.get_bitable_service()
 
     # 调试日志：追踪身份识别链路
@@ -55,8 +58,9 @@ async def upsert_kol(req: KolUpsertRequest, request: Request):
 
 @router.get("/kols/pending")
 async def get_pending_kols(request: Request, operator: str = None):
-    """拉取待发送 KOL 列表（status = pending 或 failed）。"""
+    """拉取待发送 KOL 列表（kol_contact_status = 未联系）。"""
     ctx = get_user_context(request)
+    await ctx.ensure_fresh_token()
     bitable = ctx.get_bitable_service()
 
     try:
@@ -75,6 +79,7 @@ async def get_pending_kols(request: Request, operator: str = None):
 async def get_kol(kol_id: str, request: Request):
     """查询单条 KOL 记录"""
     ctx = get_user_context(request)
+    await ctx.ensure_fresh_token()
     bitable = ctx.get_bitable_service()
 
     try:
@@ -89,27 +94,29 @@ async def get_kol(kol_id: str, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/kols/{kol_id}/status")
-async def update_kol_status(kol_id: str, req: KolStatusUpdateRequest, request: Request):
-    """更新 KOL 发送状态。"""
+@router.post("/kols/{kol_id}/contact-status")
+async def update_kol_contact_status(kol_id: str, req: KolContactStatusUpdateRequest, request: Request):
+    """更新 KOL 联系状态（kol_contact_status: 未联系/已联系）。"""
     ctx = get_user_context(request)
+    await ctx.ensure_fresh_token()
     bitable = ctx.get_bitable_service()
 
-    if req.status not in KolStatus.ALL:
+    if req.kol_contact_status not in _VALID_CONTACT_STATUSES:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid status '{req.status}'. Valid: {sorted(KolStatus.ALL)}",
+            detail=f"Invalid kol_contact_status '{req.kol_contact_status}'. Valid: {sorted(_VALID_CONTACT_STATUSES)}",
         )
 
     try:
-        await bitable.update_kol_status(
-            kol_id=kol_id, new_status=req.status,
-            last_error=req.last_error, sent_at=req.sent_at,
+        await bitable.update_kol_contact_status(
+            kol_id=kol_id,
+            contact_status=req.kol_contact_status,
+            last_error=req.last_error,
         )
         return {
             "success": True,
-            "data": {"kol_id": kol_id, "status": req.status},
-            "message": f"KOL '{kol_id}' status updated to '{req.status}'",
+            "data": {"kol_id": kol_id, "kol_contact_status": req.kol_contact_status},
+            "message": f"KOL '{kol_id}' contact status updated to '{req.kol_contact_status}'",
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

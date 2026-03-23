@@ -102,7 +102,7 @@ class KolRecord(BaseModel):
     category: str = Field("", description="内容分类")
     template_key: str = Field("", description="模板标识")
     template_name: str = Field("", description="模板名称")
-    status: str = Field("pending", description="发送状态，见 KolStatus")
+    kol_contact_status: str = Field("未联系", description="联系状态: 未联系/已联系")
     operator: str = Field("", description="操作者")
     notes: str = Field("", description="备注")
     platform: str = Field("YouTube", description="平台")
@@ -147,11 +147,10 @@ class RenderPreviewResponse(BaseModel):
     warnings: List[str] = []
 
 
-class KolStatusUpdateRequest(BaseModel):
-    """KOL 状态更新请求"""
-    status: str = Field(..., description="目标状态: pending/preview_sent/confirmed/sending/sent/failed/skipped")
-    last_error: str = Field("", description="失败原因（仅 status=failed 时需要）")
-    sent_at: str = Field("", description="发送成功时间（仅 status=sent 时自动填充）")
+class KolContactStatusUpdateRequest(BaseModel):
+    """KOL 联系状态更新请求"""
+    kol_contact_status: str = Field(..., description="联系状态: 未联系/已联系")
+    last_error: str = Field("", description="失败原因")
 
 
 class MailPreviewSendRequest(BaseModel):

@@ -13,7 +13,6 @@
   - 卡片按钮 value 中携带 user_id
   - 回调通过 user_id 恢复用户上下文
   - preview/confirm/refresh 使用用户专属 Bitable + SMTP
-  - 不会串用别人的配置
 """
 import asyncio
 import json
@@ -23,22 +22,19 @@ import logging
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from config import settings
-from services.bitable_service import bitable_service
+from models.db import get_connection
 from services.bot_service import bot_service
-from services.smtp_service import smtp_service
 from services.template_service import template_service
 from services.render_service import render_template
 from services.queue_service import send_batch
 from services.user_context import get_user_context_by_open_id, get_user_context_by_id, UserContext
-from models.constants import KolStatus
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 DEFAULT_OPERATOR = "default"
 
-# 事件去重
-_processed_events: dict[str, float] = {}
+# 事件去重 TTL（秒）
 _EVENT_TTL = 300
 
 # 每用户发送锁：防止同一用户并发重复发送，但不同用户互不阻塞
@@ -69,6 +65,33 @@ def _get_user_lock(user_id: int | None) -> asyncio.Lock:
     if key not in _user_send_locks:
         _user_send_locks[key] = asyncio.Lock()
     return _user_send_locks[key]
+
+
+# ══════════════════════════════════════
+# 持久化事件去重（SQLite）
+# ══════════════════════════════════════
+
+def _is_duplicate_event(event_id: str) -> bool:
+    """检查事件是否已处理（持久化到 SQLite）"""
+    now = time.time()
+    conn = get_connection()
+    try:
+        # 清理过期事件
+        conn.execute("DELETE FROM processed_events WHERE processed_at < ?", (now - _EVENT_TTL,))
+        # 检查是否已存在
+        row = conn.execute("SELECT 1 FROM processed_events WHERE event_id = ?", (event_id,)).fetchone()
+        if row:
+            conn.commit()
+            return True
+        # 记录新事件
+        conn.execute(
+            "INSERT INTO processed_events (event_id, processed_at) VALUES (?, ?)",
+            (event_id, now),
+        )
+        conn.commit()
+        return False
+    finally:
+        conn.close()
 
 
 # ══════════════════════════════════════
@@ -125,13 +148,13 @@ async def handle_feishu_event(request: Request):
 
     if not command:
         help_text = (
-            "💡 支持的命令：\n"
-            "  发送邮件 → 查看待发送汇总（交互卡片）\n"
-            "  查看待发送 → 同上\n"
-            "  预览发送 → 发一封预览到你的邮箱"
+            "支持的命令：\n"
+            "  发送邮件 - 查看待发送汇总（交互卡片）\n"
+            "  查看待发送 - 同上\n"
+            "  预览发送 - 发一封预览到你的邮箱"
         )
         if not ctx.logged_in:
-            help_text += "\n\n⚠️ 你尚未在系统中登录，请先在 Admin Dashboard 登录飞书"
+            help_text += "\n\n注意：你尚未在系统中登录，请先在 Admin Dashboard 登录飞书"
         await bot_service.send_text_to_chat(chat_id, help_text)
         return {"success": True, "message": "Help sent"}
 
@@ -142,7 +165,7 @@ async def handle_feishu_event(request: Request):
     elif command == "预览发送":
         return await _handle_preview_direct(chat_id, ctx)
     else:
-        await bot_service.send_text_to_chat(chat_id, f"❓ 未识别的命令: {command}")
+        await bot_service.send_text_to_chat(chat_id, f"未识别的命令: {command}")
         return {"success": False, "message": f"Unknown command: {command}"}
 
 
@@ -167,7 +190,6 @@ async def handle_card_callback(request: Request):
     raw_action = body.get("action", {})
     raw_value = raw_action.get("value") if isinstance(raw_action, dict) else raw_action
 
-    # 将 raw_value 解析成 dict（处理多层 JSON 编码）
     parsed = _parse_card_value(raw_value)
     action_type = parsed.get("action", "")
     user_id = parsed.get("user_id")
@@ -181,7 +203,6 @@ async def handle_card_callback(request: Request):
     ctx = get_user_context_by_id(user_id) if user_id else UserContext(None)
 
     _log_action(f"card:{action_type}", ctx.user_id, ctx.operator_name, f"msg_id={open_message_id}")
-    logger.info("Card callback: action=%s user_id=%s chat=%s", action_type, user_id, open_chat_id)
 
     # 未登录用户禁止发送
     if action_type in ("preview_send", "confirm_send") and not ctx.logged_in:
@@ -225,7 +246,6 @@ async def handle_bot_command(request: Request):
     if not command:
         return {"success": False, "message": "No command recognized", "data": {"supported": ["发送邮件", "查看待发送", "预览发送"]}}
 
-    # 构建用户上下文
     ctx = get_user_context_by_id(user_id) if user_id else UserContext(None)
 
     if command in ("发送邮件", "查看待发送") and chat_id:
@@ -260,7 +280,7 @@ async def test_send_card(request: Request):
     if not chat_id:
         return {"success": False, "message": "chat_id is required"}
     test_kols = [
-        {"kol_name": "TestBot1", "email": "test1@example.com", "template_key": "tmpl_test", "status": "pending"},
+        {"kol_name": "TestBot1", "email": "test1@example.com", "template_key": "tmpl_test", "kol_contact_status": "未联系"},
     ]
     card = bot_service.build_pending_card("test_user", test_kols, user_id=None)
     r = await bot_service.send_card_to_chat(chat_id, card)
@@ -281,6 +301,7 @@ async def get_debug_log():
 
 async def _handle_send_card(chat_id: str, ctx: UserContext) -> dict:
     """查询待发 KOL 并回复交互卡片"""
+    await ctx.ensure_fresh_token()
     config_check = _check_user_config(ctx)
 
     bitable = ctx.get_bitable_service()
@@ -305,6 +326,7 @@ async def _handle_send_card(chat_id: str, ctx: UserContext) -> dict:
 
 async def _handle_preview_direct(chat_id: str, ctx: UserContext) -> dict:
     """直接发送预览"""
+    await ctx.ensure_fresh_token()
     result_text = await _do_preview_send(ctx)
     r = await bot_service.send_text_to_chat(chat_id, result_text)
     return {"success": r["ok"], "message": result_text if r["ok"] else f"Send failed: {r['error']}"}
@@ -319,6 +341,7 @@ async def _cb_preview_send(message_id: str, chat_id: str, ctx: UserContext) -> d
     await bot_service.update_card(message_id,
         bot_service.build_result_card(operator, "正在发送预览...", "blue"))
 
+    await ctx.ensure_fresh_token()
     result_text = await _do_preview_send(ctx)
     _log_action("preview_send_done", ctx.user_id, operator, result_text[:100])
 
@@ -330,9 +353,8 @@ async def _cb_preview_send(message_id: str, chat_id: str, ctx: UserContext) -> d
             "green" if ok else "red",
             detail_text=result_text,
         ))
-    # 失败时群内发通知
     if not ok:
-        await bot_service.send_text_to_chat(chat_id, f"❌ 预览发送失败: {result_text}")
+        await bot_service.send_text_to_chat(chat_id, f"预览发送失败: {result_text}")
     return {}
 
 
@@ -345,16 +367,16 @@ async def _cb_confirm_send(message_id: str, chat_id: str, ctx: UserContext) -> d
             bot_service.build_result_card(operator, "你有发送任务正在执行中，请稍后再试", "orange"))
         return {}
 
+    await ctx.ensure_fresh_token()
     config_err = _check_user_config(ctx, require_smtp=True)
     if config_err:
         await bot_service.update_card(message_id,
             bot_service.build_result_card(operator, "配置不完整", "red", detail_text=config_err))
         return {}
 
-    # 更新卡片 + 群内发送"开始发送"通知
     await bot_service.update_card(message_id,
         bot_service.build_result_card(operator, "正式发送中，请稍候...", "blue"))
-    await bot_service.send_text_to_chat(chat_id, f"📤 发送任务已开始 (操作者: {operator})，正在处理待发送 KOL...")
+    await bot_service.send_text_to_chat(chat_id, f"发送任务已开始 (操作者: {operator})，正在处理待发送 KOL...")
 
     asyncio.create_task(_do_confirm_send_and_update(message_id, chat_id, ctx))
     return {}
@@ -374,18 +396,17 @@ async def _do_confirm_send_and_update(message_id: str, chat_id: str, ctx: UserCo
             await bot_service.update_card(message_id,
                 bot_service.build_result_card(operator, status, color, detail_text=result_text, show_retry=has_failures))
 
-            # 群内发送结果通知
-            await bot_service.send_text_to_chat(chat_id, f"📊 发送完成\n{result_text}")
+            await bot_service.send_text_to_chat(chat_id, f"发送完成\n{result_text}")
 
         except Exception as e:
             logger.exception("Confirm send background error")
             await bot_service.update_card(message_id,
                 bot_service.build_result_card(operator, "发送异常", "red", detail_text=f"{e}"))
-            # 群内发送错误通知
-            await bot_service.send_text_to_chat(chat_id, f"❌ 发送任务异常中断: {e}")
+            await bot_service.send_text_to_chat(chat_id, f"发送任务异常中断: {e}")
 
 
 async def _cb_refresh_pending(message_id: str, chat_id: str, ctx: UserContext) -> dict:
+    await ctx.ensure_fresh_token()
     bitable = ctx.get_bitable_service()
     config_check = _check_user_config(ctx)
     try:
@@ -399,7 +420,7 @@ async def _cb_refresh_pending(message_id: str, chat_id: str, ctx: UserContext) -
         await bot_service.update_card(message_id, card)
     except Exception as e:
         await bot_service.update_card(message_id,
-            bot_service.build_result_card(ctx.operator_name, "刷新失败", "red", detail_text=f"❌ {e}"))
+            bot_service.build_result_card(ctx.operator_name, "刷新失败", "red", detail_text=f"{e}"))
     return {}
 
 
@@ -411,32 +432,29 @@ async def _do_preview_send(ctx: UserContext) -> str:
     """执行预览发送。使用用户专属 SMTP。"""
     preview_email = ctx.get_preview_email()
     if not preview_email:
-        return "❌ 预览邮箱未配置，请在 Admin Dashboard 设置"
+        return "预览邮箱未配置，请在 Admin Dashboard 设置"
 
     user_smtp = ctx.get_smtp_service()
     if not user_smtp:
-        user_smtp = smtp_service
-        missing = user_smtp.check_config()
-        if missing:
-            return f"❌ SMTP 未配置。请在 Admin Dashboard「我的 SMTP 配置」中设置邮箱和密码"
+        return "SMTP 未配置。请在 Admin Dashboard「我的 SMTP 配置」中设置邮箱和密码"
 
     bitable = ctx.get_bitable_service()
     try:
         pending = await bitable.list_pending_kols(operator=None)
     except Exception as e:
-        return f"❌ 查询待发送 KOL 失败: {e}"
+        return f"查询待发送 KOL 失败: {e}"
 
     if not pending:
-        return "📭 没有待发送的 KOL，无法生成预览"
+        return "没有待发送的 KOL，无法生成预览"
 
     kol = pending[0]
     template_key = kol.get("template_key", "")
     if not template_key:
-        return f"❌ KOL {kol.get('kol_name')} 没有关联模板"
+        return f"KOL {kol.get('kol_name')} 没有关联模板"
 
     tmpl = template_service.get_template(template_key)
     if not tmpl:
-        return f"❌ 模板 '{template_key}' 不存在"
+        return f"模板 '{template_key}' 不存在"
 
     rendered = render_template(tmpl, kol)
     result = user_smtp.send_preview_email(
@@ -448,39 +466,35 @@ async def _do_preview_send(ctx: UserContext) -> str:
 
     if result.success:
         return (
-            f"✉️ 预览邮件已发送\n"
+            f"预览邮件已发送\n"
             f"操作者：{ctx.operator_name}\n"
             f"发送到：{preview_email}\n"
             f"KOL：{kol.get('kol_name')}\n"
             f"模板：{template_key}\n"
             f"标题：{rendered['subject']}"
         )
-    return f"❌ 预览发送失败: {result.message}"
+    return f"预览发送失败: {result.message}"
 
 
 async def _do_confirm_send(ctx: UserContext) -> tuple[str, bool]:
     """执行正式发送。使用用户专属 Bitable + SMTP。"""
     user_smtp = ctx.get_smtp_service()
     if not user_smtp:
-        user_smtp = smtp_service
-        missing = user_smtp.check_config()
-        if missing:
-            return "❌ SMTP 未配置。请在 Admin Dashboard「我的 SMTP 配置」中设置邮箱和密码", False
+        return "SMTP 未配置。请在 Admin Dashboard「我的 SMTP 配置」中设置邮箱和密码", False
 
     bitable = ctx.get_bitable_service()
     try:
         pending = await bitable.list_pending_kols(operator=None)
     except Exception as e:
-        return f"❌ 查询待发送 KOL 失败: {e}", False
+        return f"查询待发送 KOL 失败: {e}", False
 
     if not pending:
-        return "📭 没有待发送的 KOL", False
+        return "没有待发送的 KOL", False
 
     kol_ids = [k["kol_id"] for k in pending if k.get("kol_id")]
     if not kol_ids:
-        return "📭 没有可发送的 KOL（全部缺少 kol_id）", False
+        return "没有可发送的 KOL（全部缺少 kol_id）", False
 
-    # 传入用户专属的 bitable 和 smtp
     result = await send_batch(kol_ids, bitable=bitable, smtp=user_smtp)
 
     sent = result["sent"]
@@ -488,11 +502,11 @@ async def _do_confirm_send(ctx: UserContext) -> tuple[str, bool]:
     skipped = result["skipped"]
 
     lines = [
-        f"📊 **发送结果**（{ctx.operator_name}）",
+        f"**发送结果**（{ctx.operator_name}）",
         f"总计：{result['total']} 封",
-        f"成功：{sent} ✅",
-        f"失败：{failed} ❌",
-        f"跳过：{skipped} ⏭️",
+        f"成功：{sent}",
+        f"失败：{failed}",
+        f"跳过：{skipped}",
     ]
 
     failed_details = [r for r in result.get("results", []) if r["status"] == "failed"]
@@ -517,7 +531,7 @@ def _check_user_config(ctx: UserContext, require_smtp: bool = False) -> str | No
     返回错误提示文本，None 表示配置完整。
     """
     if not ctx.logged_in:
-        return "⚠️ 未登录：请先在 Admin Dashboard 登录飞书"
+        return "未登录：请先在 Admin Dashboard 登录飞书"
 
     user = ctx.user
     issues = []
@@ -530,7 +544,7 @@ def _check_user_config(ctx: UserContext, require_smtp: bool = False) -> str | No
             issues.append("SMTP 邮箱未配置")
 
     if issues:
-        return "⚠️ " + "、".join(issues) + "（请在 Admin Dashboard 设置）"
+        return "、".join(issues) + "（请在 Admin Dashboard 设置）"
 
     return None
 
@@ -543,20 +557,17 @@ def _parse_card_value(raw) -> dict:
     - 纯字符串: 当作 action 名
     - None: 返回空 dict
     """
-    # 递归解码 JSON string（飞书有时会双重编码）
     val = raw
-    for _ in range(3):  # 最多解 3 层
+    for _ in range(3):
         if isinstance(val, dict):
             return val
         if isinstance(val, str):
             try:
                 val = json.loads(val)
             except (json.JSONDecodeError, TypeError):
-                # 不是 JSON，当作纯 action 名
                 return {"action": val.strip()}
         else:
             return {}
-    # 如果 3 层后还不是 dict
     return {"action": str(val)} if val else {}
 
 
@@ -567,14 +578,3 @@ def _extract_command(text: str) -> str:
         if cmd in text:
             return cmd
     return ""
-
-
-def _is_duplicate_event(event_id: str) -> bool:
-    now = time.time()
-    expired = [k for k, v in _processed_events.items() if now - v > _EVENT_TTL]
-    for k in expired:
-        _processed_events.pop(k, None)
-    if event_id in _processed_events:
-        return True
-    _processed_events[event_id] = now
-    return False

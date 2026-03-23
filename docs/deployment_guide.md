@@ -177,10 +177,6 @@ LARK_BOT_WEBHOOK=https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx-xxxx-xxxx
 PREVIEW_RECEIVER_EMAIL=your.name@yourcompany.com
 SEND_DELAY_MIN=5
 SEND_DELAY_MAX=15
-DAILY_LIMIT=20
-
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your_secure_password
 ```
 
 > 切勿将 `.env` 文件提交到 Git。

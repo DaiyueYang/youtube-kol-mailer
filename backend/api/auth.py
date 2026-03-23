@@ -10,22 +10,24 @@
 """
 import time
 import logging
-from fastapi import APIRouter, Request, Cookie
-from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import RedirectResponse, JSONResponse
 from services.auth_service import auth_service
 from repositories.user_repo import user_repo
+from models.db import get_connection
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# 一次性 token 过期时间（秒）
+_PENDING_TOKEN_TTL = 300
+
 
 def _get_session(request: Request) -> str:
     """从 Cookie 或 Header 中获取 session_token"""
-    # 优先 Cookie
     token = request.cookies.get("session_token", "")
     if token:
         return token
-    # 兜底 Header（扩展可能用这个）
     return request.headers.get("X-Session-Token", "")
 
 
@@ -62,6 +64,42 @@ def _safe_user_info(user: dict) -> dict:
 
 
 # ══════════════════════════════════════
+# 持久化一次性 token（SQLite）
+# ══════════════════════════════════════
+
+def _store_pending_token(state: str, session_token: str):
+    """存储一次性 token 到数据库"""
+    conn = get_connection()
+    try:
+        # 先清理过期 token
+        conn.execute("DELETE FROM pending_tokens WHERE created_at < ?", (time.time() - _PENDING_TOKEN_TTL,))
+        conn.execute(
+            "INSERT OR REPLACE INTO pending_tokens (state, session_token, created_at) VALUES (?, ?, ?)",
+            (state, session_token, time.time()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _consume_pending_token(state: str) -> str | None:
+    """取出并删除一次性 token（一次性消费）"""
+    conn = get_connection()
+    try:
+        # 先清理过期 token
+        conn.execute("DELETE FROM pending_tokens WHERE created_at < ?", (time.time() - _PENDING_TOKEN_TTL,))
+        row = conn.execute("SELECT session_token FROM pending_tokens WHERE state = ?", (state,)).fetchone()
+        if row:
+            conn.execute("DELETE FROM pending_tokens WHERE state = ?", (state,))
+            conn.commit()
+            return row["session_token"]
+        conn.commit()
+        return None
+    finally:
+        conn.close()
+
+
+# ══════════════════════════════════════
 # OAuth 流程
 # ══════════════════════════════════════
 
@@ -71,7 +109,6 @@ async def login(ext_state: str = ""):
     重定向到飞书 OAuth 授权页。
     ext_state: 扩展传入的随机标识，登录成功后用于取回 session_token。
     """
-    # 把 ext_state 编码到 OAuth state 中，回调时带回
     state = ext_state or ""
     url = auth_service.get_login_url(state=state)
     return RedirectResponse(url=url)
@@ -97,9 +134,9 @@ async def callback(code: str = "", state: str = ""):
 
     token = user["session_token"]
 
-    # 如果有 ext_state（扩展登录），存储 token 供扩展轮询取回
+    # 如果有 ext_state（扩展登录），持久化存储 token 供扩展轮询取回
     if state:
-        _pending_tokens[state] = token
+        _store_pending_token(state, token)
 
     # 设置 Cookie + 重定向到 Dashboard
     response = RedirectResponse(url="/admin/", status_code=302)
@@ -113,9 +150,6 @@ async def callback(code: str = "", state: str = ""):
     return response
 
 
-# 一次性 token 交换（用于 extension 登录）
-_pending_tokens: dict[str, str] = {}  # state -> session_token
-
 @router.get("/auth/session-token")
 async def get_session_token(request: Request, state: str = ""):
     """
@@ -123,10 +157,11 @@ async def get_session_token(request: Request, state: str = ""):
     方式 1: 通过 state 参数查找一次性 token（extension 登录流程）
     方式 2: 通过 Cookie（Dashboard 同域调用）
     """
-    # 方式 1: state 参数（extension 用）
-    if state and state in _pending_tokens:
-        token = _pending_tokens.pop(state)  # 一次性，取完即删
-        return {"success": True, "session_token": token}
+    # 方式 1: state 参数（extension 用）— 从数据库消费
+    if state:
+        token = _consume_pending_token(state)
+        if token:
+            return {"success": True, "session_token": token}
 
     # 方式 2: Cookie（Dashboard 用）
     token = request.cookies.get("session_token", "")

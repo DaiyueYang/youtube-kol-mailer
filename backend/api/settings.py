@@ -17,8 +17,7 @@ import logging
 import httpx
 from fastapi import APIRouter, Request
 from config import settings, ENV_PATH, ENV_FILE_EXISTS
-from services.bitable_service import bitable_service, BitableService
-from services.smtp_service import smtp_service
+from services.bitable_service import BitableService
 from services.user_context import get_user_context
 from repositories.user_repo import user_repo
 from repositories.user_tables_repo import user_tables_repo
@@ -33,7 +32,6 @@ async def get_settings():
         "app_env": settings.APP_ENV,
         "smtp_host": settings.LARK_SMTP_HOST,
         "smtp_port": settings.LARK_SMTP_PORT,
-        "daily_limit": settings.DAILY_LIMIT,
         "send_delay_min": settings.SEND_DELAY_MIN,
         "send_delay_max": settings.SEND_DELAY_MAX,
         "api_base": settings.get_api_base(),
@@ -56,7 +54,7 @@ async def create_table(request: Request):
     if not user:
         return {"success": False, "message": "请先登录飞书"}
 
-    # 严格检查 user_access_token
+    await ctx.ensure_fresh_token()
     user_token = ctx._get_user_token()
     if not user_token:
         expires = user.get("token_expires_at", 0)
@@ -263,6 +261,9 @@ async def select_subtable(request: Request):
 async def get_send_queue(request: Request):
     """查询当前用户 Bitable 中的 KOL 记录，分为待发送和已发送"""
     ctx = get_user_context(request)
+    if not ctx.logged_in:
+        return {"success": False, "message": "请先登录飞书", "data": None}
+    await ctx.ensure_fresh_token()
     bitable = ctx.get_bitable_service()
 
     if not bitable.app_token:
@@ -309,6 +310,9 @@ async def bitable_status(request: Request):
     from models.constants import KOL_TABLE_FIELDS
 
     ctx = get_user_context(request)
+    if not ctx.logged_in:
+        return {"success": False, "data": {"error": "请先登录飞书"}}
+    await ctx.ensure_fresh_token()
     bitable = ctx.get_bitable_service()
     user = ctx.user
 
@@ -367,6 +371,8 @@ async def bitable_status(request: Request):
 async def get_bitable_url(request: Request):
     """返回当前选中表格的打开链接"""
     ctx = get_user_context(request)
+    if not ctx.logged_in:
+        return {"success": False, "url": "", "message": "请先登录飞书"}
     bitable = ctx.get_bitable_service()
     app_token = bitable.app_token
     table_id = bitable.table_id
@@ -415,6 +421,9 @@ async def init_all(request: Request):
 async def debug_bitable(request: Request):
     from models.constants import KOL_TABLE_FIELDS
     ctx = get_user_context(request)
+    if not ctx.logged_in:
+        return {"success": False, "steps": [{"step": "Auth", "status": "FAIL", "detail": "请先登录飞书"}]}
+    await ctx.ensure_fresh_token()
     bitable = ctx.get_bitable_service()
     api_base = settings.get_api_base()
     steps = []
@@ -460,11 +469,18 @@ async def debug_bitable(request: Request):
 
 
 @router.get("/debug/smtp")
-async def debug_smtp():
-    missing = smtp_service.check_config()
+async def debug_smtp(request: Request):
+    """诊断当前用户的 SMTP 配置"""
+    ctx = get_user_context(request)
+    if not ctx.logged_in:
+        return {"success": False, "detail": "请先登录飞书"}
+    user_smtp = ctx.get_smtp_service()
+    if not user_smtp:
+        return {"success": False, "detail": "SMTP 未配置，请在 Dashboard SMTP 页签设置邮箱和密码"}
+    missing = user_smtp.check_config()
     if missing:
         return {"success": False, "detail": f"Missing: {', '.join(missing)}"}
     return {"success": True, "detail": {
-        "host": settings.LARK_SMTP_HOST, "port": settings.LARK_SMTP_PORT,
-        "user": settings.LARK_SMTP_USER[:3] + "***" if settings.LARK_SMTP_USER else "",
+        "host": user_smtp.host, "port": user_smtp.port,
+        "user": user_smtp.username[:3] + "***" if user_smtp.username else "",
     }}

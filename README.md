@@ -66,12 +66,8 @@ youtube-kol-mailer/
 │   └── .env.example                 # 配置模板（不含真实值）
 ├── extension/
 │   ├── manifest.json                # Chrome 扩展清单（Manifest V3）
-│   ├── popup.html / popup.js        # 弹出页面：抓取结果 + 模板选择 + 写入
 │   ├── content.js                   # YouTube 页面 KOL 信息抓取
 │   ├── background.js                # Service Worker：API 请求中转
-│   ├── options.html / options.js    # 扩展设置页面
-│   ├── utils.js                     # 公共工具函数
-│   ├── styles.css                   # 扩展样式
 │   └── icons/                       # 扩展图标
 ├── scripts/
 │   ├── init_db.py                   # 数据库建表脚本
@@ -128,23 +124,15 @@ curl -X POST https://api.youtube-kol.com/api/admin/init-bitable
 |--------|---------|------|
 | kol_id | 文本 | 后端生成的唯一 ID（如 yt_9f7c2a1d） |
 | kol_name | 文本 | 博主名/频道名 |
-| channel_name | 文本 | 频道名称（可能与 kol_name 相同） |
-| platform | 文本 | 平台名（默认 YouTube） |
-| channel_url | 文本 | 频道主页链接 |
 | email | 文本 | 联系邮箱 |
-| country_region | 文本 | 地区 |
-| language | 文本 | 沟通语言 |
-| followers_text | 文本 | 粉丝数文本（如 152K） |
-| category | 文本 | 内容分类 |
+| channel_url | 文本 | 频道主页链接 |
 | template_id | 文本 | 模板标识（存储 template_key） |
-| template_name | 文本 | 模板名称 |
-| status | 文本 | 发送状态 |
 | operator | 文本 | 操作者 |
-| notes | 文本 | 备注 |
+| category | 文本 | 内容分类 |
+| followers_text | 文本 | 粉丝数文本（如 152K） |
 | last_error | 文本 | 最近失败原因 |
 | sent_at | 文本 | 发送成功时间 |
-| created_at | 文本 | 创建时间 |
-| updated_at | 文本 | 更新时间 |
+| kol_contact_status | 单选 | 联系状态：未联系/已联系 |
 
 创建后，从浏览器地址栏获取：
 - `LARK_BITABLE_APP_TOKEN`：URL 中 `/base/` 后的字符串
@@ -241,7 +229,6 @@ cp .env.example .env
 | `PREVIEW_RECEIVER_EMAIL` | 是 | 预览邮件接收地址（你自己） |
 | `LARK_SMTP_FROM_NAME` | 否 | 发件人显示名 |
 | `SEND_DELAY_MIN` / `MAX` | 否 | 每封邮件间隔秒数（默认 5-15） |
-| `DAILY_LIMIT` | 否 | 每日发送上限（默认 20） |
 
 ## 四、启动步骤
 
@@ -325,7 +312,7 @@ python -X utf8 ../scripts/smoke_test_bitable.py
 
 1. 确认信息无误后，点击「写入 KOL」
 2. 后端生成 kol_id，将记录写入飞书 Bitable KOL 表
-3. 新记录默认 status = `pending`
+3. 新记录默认 kol_contact_status = `未联系`
 4. 如果该 KOL 已存在（按 kol_id 去重），执行更新
 
 ### 第 4 步：Bot 汇总待发送
@@ -342,20 +329,20 @@ python -X utf8 ../scripts/smoke_test_bitable.py
 ### 第 6 步：确认正式发送
 
 1. 预览无误后，在群中发送 `@Bot 确认发送`
-2. 后端逐条发送：校验 → 锁定(sending) → 随机延迟 → SMTP 发信 → 回写状态
+2. 后端逐条发送：校验 → 随机延迟 → SMTP 发信 → 回写 kol_contact_status
 3. 每封邮件间隔 5-15 秒（可通过 `.env` 调整）
 
 ### 第 7 步：查看结果
 
 1. 发送完成后，Bot 在群内播报结果：成功数、失败数、失败详情
-2. 成功的 KOL：status → `sent`，写入 `sent_at`
-3. 失败的 KOL：status → `failed`，写入 `last_error`
+2. 成功的 KOL：kol_contact_status → `已联系`，写入 `sent_at`
+3. 失败的 KOL：写入 `last_error` 记录失败原因
 
 ### 第 8 步：重试失败项
 
 1. 如有失败，在群中发送 `@Bot 重试失败`
-2. Bot 只重发 status = `failed` 的 KOL
-3. 已 `sent` 的永远不会重复发送
+2. Bot 只重发有 `last_error` 且 kol_contact_status 非 `已联系` 的 KOL
+3. kol_contact_status = `已联系` 的永远不会重复发送
 
 ## 六、排查指南
 
@@ -412,25 +399,15 @@ Variable '{category}' used in template but not provided
 - 检查 Chrome 控制台是否有 CORS 错误（后端默认允许所有来源）
 - 如果后端端口不是 8000，需同时修改 `extension/manifest.json` 中的 `host_permissions`
 
-### sent 状态重复发送保护
+### 已联系状态重复发送保护
 
 ```
 Already sent, skipping
 ```
 
-- 这是正常行为：已成功发送的 KOL 永远不会被重复发送
-- `sent` 是终态，状态机不允许从 `sent` 转向任何其他状态
-- 如果确实需要重发，需手动在 Bitable 中将 status 改回 `pending`
-
-### sending 状态卡死
-
-```
-Currently sending, try later
-```
-
-- `sending` 是发送过程中的临时锁定状态
-- 如果超过 5 分钟仍为 `sending`，系统自动视为超时，下次提交时会重试
-- 不需要手动处理
+- 这是正常行为：kol_contact_status = `已联系` 的 KOL 永远不会被重复发送
+- `已联系` 是终态，不允许重复发送
+- 如果确实需要重发，需手动在 Bitable 中将 kol_contact_status 改回 `未联系`
 
 ## 七、发送安全提醒
 
@@ -486,7 +463,7 @@ Currently sending, try later
 | POST | `/api/kols/upsert` | 写入/更新 KOL |
 | GET | `/api/kols/pending` | 待发送 KOL 列表 |
 | GET | `/api/kols/{kol_id}` | 查询单条 KOL |
-| POST | `/api/kols/{kol_id}/status` | 更新 KOL 状态 |
+| POST | `/api/kols/{kol_id}/contact-status` | 更新 KOL 联系状态（kol_contact_status） |
 | POST | `/api/render/preview` | 渲染模板（不发送） |
 | POST | `/api/mail/preview-send` | 发送预览到自己邮箱 |
 | POST | `/api/mail/send` | 正式批量发送 |
@@ -528,6 +505,6 @@ Currently sending, try later
 - [ ] Bot 命令 `发送邮件` 返回待发送汇总（需 Bitable 配置）
 - [ ] Bot 命令 `测试发送` 发送预览邮件（需 SMTP + Bitable 配置）
 - [ ] Bot 命令 `确认发送` 正式发送并播报结果
-- [ ] 发送成功的 KOL 状态变为 `sent`，再次提交时被跳过
-- [ ] 发送失败的 KOL 状态变为 `failed`，`last_error` 记录原因
+- [ ] 发送成功的 KOL kol_contact_status 变为 `已联系`，再次提交时被跳过
+- [ ] 发送失败的 KOL `last_error` 记录失败原因
 - [ ] Bot 命令 `重试失败` 重新发送失败项

@@ -59,7 +59,8 @@ def init_db():
     """)
 
     # ── operators 表 ──
-    # 多操作者配置，每人可有独立的 Bitable/SMTP/Bot
+    # [历史/未使用] 多操作者配置预留表，当前无业务代码读写此表。
+    # daily_limit 等字段为历史设计遗留，不参与任何业务逻辑。
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS operators (
             id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,7 +80,8 @@ def init_db():
     """)
 
     # ── send_jobs 表 ──
-    # 发送任务锁、进度追踪、断点续发
+    # [历史/未使用] 发送任务锁预留表，当前无业务代码读写此表。
+    # job_status 等字段为历史设计遗留，不参与任何业务逻辑。
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS send_jobs (
             job_id              TEXT PRIMARY KEY,
@@ -145,6 +147,25 @@ def init_db():
             value       TEXT NOT NULL DEFAULT '',
             description TEXT NOT NULL DEFAULT '',
             updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
+    # ── pending_tokens 表 ──
+    # OAuth 扩展登录的一次性 token（持久化，避免重启丢失）
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pending_tokens (
+            state           TEXT PRIMARY KEY,
+            session_token   TEXT NOT NULL,
+            created_at      REAL NOT NULL
+        )
+    """)
+
+    # ── processed_events 表 ──
+    # 飞书事件去重（持久化，避免重启后重复处理）
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS processed_events (
+            event_id        TEXT PRIMARY KEY,
+            processed_at    REAL NOT NULL
         )
     """)
 

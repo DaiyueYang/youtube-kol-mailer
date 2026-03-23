@@ -607,7 +607,6 @@ async function loadSysStatus(){
     h+='<div class="row"><span class="lbl">后端状态</span><span class="val">'+bg(health.status==='ok','v'+health.version)+'</span></div>';
     h+='<div class="row"><span class="lbl">API Base</span><span class="val">'+esc(settings.api_base)+'</span></div>';
     h+='<div class="row"><span class="lbl">SMTP Host</span><span class="val">'+esc(settings.smtp_host)+':'+settings.smtp_port+'</span></div>';
-    h+='<div class="row"><span class="lbl">每日限额</span><span class="val">'+settings.daily_limit+'</span></div>';
     h+='<div class="row"><span class="lbl">发送间隔</span><span class="val">'+settings.send_delay_min+'-'+settings.send_delay_max+'s</span></div>';
     h+='<div class="row"><span class="lbl">用户登录</span><span class="val">'+bg(authStatus.logged_in,authStatus.logged_in?authStatus.display_name:'未登录')+'</span></div>';
     h+='<div class="row"><span class="lbl">Bitable</span><span class="val">'+bg(authStatus.has_bitable,authStatus.has_bitable?'已配置':'未配置')+'</span></div>';

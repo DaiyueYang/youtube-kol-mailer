@@ -1,96 +1,12 @@
 """
-状态机常量与枚举定义
+常量定义
 
-KOL 发送状态流转：
+KOL 联系状态（kol_contact_status）：
+- 未联系：新写入，尚未发送邮件
+- 已联系：邮件发送成功
 
-    ┌──────────┐
-    │ pending  │  扩展写入 / 后端创建，邮箱有效
-    └────┬─────┘
-         │
-    ┌────┴─────────────────────┐
-    │ Bot 触发预览             │ 校验失败（无邮箱等）
-    ▼                          ▼
-┌──────────────┐          ┌────────┐
-│ preview_sent │          │ failed │
-└────┬─────────┘          └───┬────┘
-     │ 操作者确认              │ 可重试 → 回到 pending
-     ▼                         │
-┌───────────┐                  │
-│ confirmed ├──────────────────┘  校验失败也可 → failed
-└────┬──────┘
-     │ 进入发送队列
-     ▼
-┌──────────┐
-│ sending  │  正在发送中（防并发，超时 5 分钟自动解锁）
-└────┬─────┘
-     │
-┌────┴────┐
-│         │
-▼         ▼
-┌──────┐  ┌────────┐
-│ sent │  │ failed │
-└──────┘  └────────┘
-
-任何非终态 → skipped（人工忽略，终态）
-
-关键规则：
-- 只有 pending 和 failed 允许进入发送候选集
-- preview_sent 不代表已给 KOL 发出正式邮件，只代表操作者收到了预览
-- 一条 KOL 进入 sent 后，后端必须通过 kol_id + status 锁避免重复发信
-- sending 是发送过程中的临时锁定状态，防止并发
-- skipped 是终态，不参与任何自动流程
+防重规则：kol_contact_status = "已联系" 的 KOL 不会重复发信。
 """
-
-
-class KolStatus:
-    """KOL 发送状态枚举"""
-
-    PENDING = "pending"              # 待联系 - 新写入且邮箱有效
-    PREVIEW_SENT = "preview_sent"    # 预览已发送 - 操作者已收到测试预览
-    CONFIRMED = "confirmed"          # 已确认 - 操作者已确认发送
-    SENDING = "sending"              # 发送中 - 正在 SMTP 发信（临时锁）
-    SENT = "sent"                    # 已发送 - SMTP 正式发送成功
-    FAILED = "failed"                # 发送失败 - SMTP 或渲染失败
-    SKIPPED = "skipped"              # 忽略 - 人工标记不发送
-
-    # 允许进入发送候选集的状态
-    SENDABLE = {PENDING, FAILED}
-
-    # 终态（不再参与自动流程）
-    TERMINAL = {SENT, SKIPPED}
-
-    # 所有合法状态
-    ALL = {PENDING, PREVIEW_SENT, CONFIRMED, SENDING, SENT, FAILED, SKIPPED}
-
-    # 状态流转映射：当前状态 -> 允许转入的下一个状态集合
-    TRANSITIONS = {
-        PENDING:      {PREVIEW_SENT, CONFIRMED, SENDING, FAILED, SKIPPED},
-        PREVIEW_SENT: {CONFIRMED, SKIPPED},
-        CONFIRMED:    {SENDING, FAILED, SKIPPED},
-        SENDING:      {SENT, FAILED},
-        SENT:         set(),          # 终态，不允许再变
-        FAILED:       {PENDING, SENDING, SKIPPED},  # 重试时可回到 pending 或直接进入 sending
-        SKIPPED:      set(),          # 终态
-    }
-
-    @classmethod
-    def can_transition(cls, from_status: str, to_status: str) -> bool:
-        """检查状态转换是否合法"""
-        if from_status not in cls.ALL or to_status not in cls.ALL:
-            return False
-        return to_status in cls.TRANSITIONS.get(from_status, set())
-
-
-class SendJobStatus:
-    """发送任务状态枚举（send_jobs 表）"""
-
-    DRAFT = "draft"            # 草稿 - 任务刚创建
-    PREVIEWED = "previewed"    # 已预览 - 预览邮件已发出
-    CONFIRMED = "confirmed"    # 已确认 - 等待执行
-    RUNNING = "running"        # 执行中
-    DONE = "done"              # 完成
-    FAILED = "failed"          # 失败（部分或全部）
-    CANCELLED = "cancelled"    # 已取消
 
 
 # Bitable KOL 表字段名 -> 后端字段名 映射
