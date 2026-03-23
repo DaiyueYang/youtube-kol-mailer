@@ -385,14 +385,14 @@ $('btn-refresh').onclick = () => location.reload();
 // Admin
 $('btn-admin').onclick = () => {
   chrome.storage.sync.get(['backend_url'], r => {
-    window.open((r.backend_url || 'http://localhost:8000') + '/admin/', '_blank');
+    window.open((r.backend_url || 'https://api.youtube-kol.com') + '/admin/', '_blank');
   });
 };
 
 // Login
 $('btn-login').onclick = () => {
   chrome.storage.sync.get(['backend_url'], r => {
-    const base = r.backend_url || 'http://localhost:8000';
+    const base = r.backend_url || 'https://api.youtube-kol.com';
     const state = 'ext_' + Math.random().toString(36).slice(2, 14);
     window.open(base + '/api/auth/login?ext_state=' + state, '_blank');
     $('write-msg').innerHTML = '<div class="msg msg-info">请在新标签页完成飞书授权...</div>';

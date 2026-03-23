@@ -215,9 +215,9 @@ python -X utf8 ../scripts/smoke_test.py
 ```
 
 启动成功后可访问：
-- 健康检查：http://localhost:8000/api/health
-- 模板列表：http://localhost:8000/api/templates
-- Admin 后台：http://localhost:8000/admin/
+- 健康检查：https://api.youtube-kol.com/api/health
+- 模板列表：https://api.youtube-kol.com/api/templates
+- Admin 后台：https://api.youtube-kol.com/admin/
 
 ---
 
@@ -228,7 +228,7 @@ python -X utf8 ../scripts/smoke_test.py
 ### 步骤 1：确认 SMTP 配置可用
 
 ```bash
-curl -X POST http://localhost:8000/api/mail/preview-send \
+curl -X POST https://api.youtube-kol.com/api/mail/preview-send \
   -H "Content-Type: application/json" \
   -d '{
     "template_key": "tmpl_youtube_general_v1",
@@ -286,7 +286,7 @@ curl -X POST http://localhost:8000/api/mail/preview-send \
 4. 扩展图标出现在工具栏（蓝色方块）
 5. 右键扩展图标 → 「选项」
 6. 填写：
-   - 后端地址：`http://localhost:8000`
+   - 后端地址：`https://api.youtube-kol.com`
    - 操作者名称：你的名字（如 `Brian`）
 7. 点击「测试连接」→ 应显示 "连接成功"
 
@@ -318,7 +318,7 @@ curl -X POST http://localhost:8000/api/mail/preview-send \
 
    > 如果使用 API 测试（不通过飞书群）：
    > ```bash
-   > curl -X POST http://localhost:8000/api/bot/command \
+   > curl -X POST https://api.youtube-kol.com/api/bot/command \
    >   -H "Content-Type: application/json" \
    >   -d '{"command": "发送邮件", "operator": "Brian"}'
    > ```
@@ -502,23 +502,23 @@ python -X utf8 scripts/smoke_test.py
 cd backend && python -X utf8 ../scripts/smoke_test_bitable.py
 
 # 手动触发 Bot 命令（不通过飞书群）
-curl -X POST http://localhost:8000/api/bot/command \
+curl -X POST https://api.youtube-kol.com/api/bot/command \
   -H "Content-Type: application/json" \
   -d '{"command": "发送邮件", "operator": "Brian"}'
 
 # 手动发送预览
-curl -X POST http://localhost:8000/api/mail/preview-send \
+curl -X POST https://api.youtube-kol.com/api/mail/preview-send \
   -H "Content-Type: application/json" \
   -d '{"template_key": "tmpl_youtube_general_v1", "variables": {"kol_name": "Test", "operator": "Brian", "email": "test@example.com"}}'
 
 # 手动正式发送
-curl -X POST http://localhost:8000/api/mail/send \
+curl -X POST https://api.youtube-kol.com/api/mail/send \
   -H "Content-Type: application/json" \
   -d '{"kol_ids": ["yt_xxxxxxxx"]}'
 
 # 查看模板列表
-curl http://localhost:8000/api/templates
+curl https://api.youtube-kol.com/api/templates
 
 # 查看待发送 KOL
-curl http://localhost:8000/api/kols/pending
+curl https://api.youtube-kol.com/api/kols/pending
 ```

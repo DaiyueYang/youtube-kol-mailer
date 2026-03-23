@@ -73,7 +73,7 @@ class Settings:
     DAILY_LIMIT: int = _get_int("DAILY_LIMIT", 20)
 
     # ── OAuth ──
-    OAUTH_REDIRECT_URI: str = _get("OAUTH_REDIRECT_URI", "http://localhost:8000/api/auth/callback")
+    OAUTH_REDIRECT_URI: str = _get("OAUTH_REDIRECT_URI", "https://api.youtube-kol.com/api/auth/callback")
 
     # ── Admin 页面 ──
     ADMIN_USERNAME: str = _get("ADMIN_USERNAME", "admin")

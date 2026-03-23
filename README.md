@@ -109,13 +109,13 @@ youtube-kol-mailer/
 1. 在飞书中创建一个空的多维表格（Bitable）
 2. 从浏览器地址栏获取 `LARK_BITABLE_APP_TOKEN`（URL 中 `/base/` 后的字符串）
 3. 填入 `.env` 文件
-4. 启动后端后，访问 Admin Dashboard (`http://localhost:8000/admin/`)
+4. 启动后端后，访问 Admin Dashboard (`https://api.youtube-kol.com/admin/`)
 5. 点击「初始化 Bitable」按钮，系统自动创建 KOL 表和所有字段
 6. 将返回的 `LARK_BITABLE_TABLE_ID` 填入 `.env`，重启后端
 
 也可以通过 API 初始化：
 ```bash
-curl -X POST http://localhost:8000/api/admin/init-bitable
+curl -X POST https://api.youtube-kol.com/api/admin/init-bitable
 ```
 
 **权限要求：** 应用必须有 `bitable:app`（多维表格读写）权限。若初始化失败提示权限不足，请在飞书开放平台为应用添加此权限并重新发布。
@@ -276,8 +276,8 @@ python -m uvicorn app:app --reload --port 8000
 ```
 
 验证：
-- 浏览器打开 http://localhost:8000/api/health → 应返回 `{"status": "ok"}`
-- 打开 http://localhost:8000/api/templates → 应返回 2 个示例模板
+- 浏览器打开 https://api.youtube-kol.com/api/health → 应返回 `{"status": "ok"}`
+- 打开 https://api.youtube-kol.com/api/templates → 应返回 2 个示例模板
 
 ### 步骤 5：加载 Chrome 扩展
 
@@ -290,7 +290,7 @@ python -m uvicorn app:app --reload --port 8000
 ### 步骤 6：配置扩展
 
 1. 右键扩展图标 → 选项
-2. 后端地址填入 `http://localhost:8000`
+2. 后端地址填入 `https://api.youtube-kol.com`
 3. 操作者名称填入你的名字
 4. 点击「测试连接」→ 应显示 "连接成功"
 
@@ -408,7 +408,7 @@ Variable '{category}' used in template but not provided
 ```
 
 - 确认后端已启动：`python -m uvicorn app:app --reload --port 8000`
-- 确认扩展 Options 中的后端地址正确（默认 `http://localhost:8000`）
+- 确认扩展 Options 中的后端地址正确（默认 `https://api.youtube-kol.com`）
 - 检查 Chrome 控制台是否有 CORS 错误（后端默认允许所有来源）
 - 如果后端端口不是 8000，需同时修改 `extension/manifest.json` 中的 `host_permissions`
 

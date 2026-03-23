@@ -32,7 +32,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 async function callBackend(method, path, body) {
   const store = await chrome.storage.sync.get(['backend_url']);
-  const base = store.backend_url || 'http://localhost:8000';
+  const base = store.backend_url || 'https://api.youtube-kol.com';
   const url = base + path;
 
   // Get session token
@@ -53,6 +53,6 @@ async function callBackend(method, path, body) {
 // First install defaults
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.sync.get(['backend_url'], r => {
-    if (!r.backend_url) chrome.storage.sync.set({ backend_url: 'http://localhost:8000' });
+    if (!r.backend_url) chrome.storage.sync.set({ backend_url: 'https://api.youtube-kol.com' });
   });
 });

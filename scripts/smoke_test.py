@@ -2,7 +2,7 @@
 最小验收测试 - 检查系统基础功能
 
 使用方式: python scripts/smoke_test.py [backend_url]
-默认测试 http://localhost:8000
+默认测试 https://api.youtube-kol.com
 """
 import sys
 import os
@@ -72,7 +72,7 @@ def test_admin_dashboard(base_url):
 
 
 if __name__ == '__main__':
-    base_url = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8000"
+    base_url = sys.argv[1] if len(sys.argv) > 1 else "https://api.youtube-kol.com"
     print(f"Running smoke tests against: {base_url}\n")
 
     results = [
