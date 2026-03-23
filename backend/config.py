@@ -45,7 +45,6 @@ class Settings:
     # ── 飞书 API 基础地址 ──
     # 飞书国内版: https://open.feishu.cn/open-apis
     # Lark 国际版: https://open.larksuite.com/open-apis
-    # 如不填，自动从 LARK_BOT_WEBHOOK 推断
     LARK_API_BASE: str = _get("LARK_API_BASE", "")
 
     # ── 飞书 SMTP（企业邮箱） ──
@@ -63,9 +62,6 @@ class Settings:
     LARK_APP_ID: str = _get("LARK_APP_ID", "")
     LARK_APP_SECRET: str = _get("LARK_APP_SECRET", "")
 
-    # ── 飞书 Bot ──
-    LARK_BOT_WEBHOOK: str = _get("LARK_BOT_WEBHOOK", "")
-
     # ── 发送配置 ──
     PREVIEW_RECEIVER_EMAIL: str = _get("PREVIEW_RECEIVER_EMAIL", "")
     SEND_DELAY_MIN: int = _get_int("SEND_DELAY_MIN", 5)
@@ -77,19 +73,10 @@ class Settings:
     def get_api_base(self) -> str:
         """
         获取飞书 API 基础地址。
-
-        优先级：
-        1. .env 中显式配置的 LARK_API_BASE
-        2. 从 LARK_BOT_WEBHOOK 自动推断（larksuite.com → 国际版）
-        3. 默认飞书国内版
+        必须在 .env 中配置 LARK_API_BASE，否则默认飞书国内版。
         """
         if self.LARK_API_BASE:
             return self.LARK_API_BASE.rstrip("/")
-
-        # 从 webhook URL 推断
-        if "larksuite.com" in self.LARK_BOT_WEBHOOK:
-            return "https://open.larksuite.com/open-apis"
-
         return "https://open.feishu.cn/open-apis"
 
 

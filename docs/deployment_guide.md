@@ -6,18 +6,16 @@
 
 ## 第一部分：需要填写的私密信息总览
 
-共 8 项必填信息，分为 3 个来源：
+共 4 项必填信息（启动和登录所必需），其余在 Dashboard 中按用户配置：
 
 | # | 配置项 | 填到哪里 | 来源 | 用途 | 缺失影响 |
 |---|--------|---------|------|------|---------|
-| 1 | `LARK_APP_ID` | `backend/.env` | 飞书开放平台 | 获取 API 访问令牌 | 无法读写 Bitable，所有 KOL 操作失败 |
+| 1 | `LARK_APP_ID` | `backend/.env` | 飞书开放平台 | OAuth 登录 + API 访问令牌 | 无法登录，无法读写 Bitable |
 | 2 | `LARK_APP_SECRET` | `backend/.env` | 飞书开放平台 | 同上 | 同上 |
-| 3 | `LARK_BITABLE_APP_TOKEN` | `backend/.env` | 飞书多维表格 URL | 定位 KOL 所在的多维表格 | 无法写入/读取 KOL 记录 |
-| 4 | `LARK_BITABLE_TABLE_ID` | `backend/.env` | 飞书多维表格 URL | 定位 KOL 所在的数据表 | 同上 |
-| 5 | `LARK_SMTP_USER` | `backend/.env` | 飞书企业邮箱 | SMTP 发件人地址 | 无法发送任何邮件 |
-| 6 | `LARK_SMTP_PASSWORD` | `backend/.env` | 飞书邮箱设置 | SMTP 认证密码 | 同上 |
-| 7 | `LARK_BOT_WEBHOOK` | `backend/.env` | 飞书群设置 | Bot 向群内推送消息 | Bot 无法在群内回复 |
-| 8 | `PREVIEW_RECEIVER_EMAIL` | `backend/.env` | 你自己的邮箱 | 接收测试预览邮件 | 无法测试发送 |
+| 3 | `LARK_API_BASE` | `backend/.env` | 见 .env.example 说明 | 飞书 API 基础地址 | API 调用失败 |
+| 4 | `OAUTH_REDIRECT_URI` | `backend/.env` | 与开放平台后台一致 | OAuth 回调地址 | 登录回调失败 |
+
+> Bitable 表格和 SMTP 邮箱由每个用户在 Dashboard 中自行配置，不再需要在 .env 中全局配置。
 
 ---
 
@@ -110,24 +108,10 @@ LARK_SMTP_USER=your.name@yourcompany.com
 LARK_SMTP_PASSWORD=xxxxxxxxxxxxxxxxxxxx
 ```
 
-### 2.4 飞书 Bot Webhook（LARK_BOT_WEBHOOK）
+### 2.4 预览接收邮箱（PREVIEW_RECEIVER_EMAIL）
 
-**操作步骤：**
-
-1. 打开你要用来操作发送确认的飞书群
-2. 点击群名称 → 进入群设置
-3. 选择「群机器人」→「添加机器人」
-4. 选择「自定义机器人」
-5. 填写机器人名称（如 "KOL 邮件助手"）
-6. 复制生成的 Webhook URL
-
-**填入 .env：**
-
-```
-LARK_BOT_WEBHOOK=https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-```
-
-### 2.5 预览接收邮箱（PREVIEW_RECEIVER_EMAIL）
+> **注意：** 本项目使用应用机器人 API 发送群消息，不需要配置自定义机器人 Webhook。
+> Bot 功能通过 LARK_APP_ID 的 tenant_access_token + chat_id 实现。
 
 这是你自己的邮箱地址，用于接收测试预览邮件。可以是：
 - 你的飞书企业邮箱
@@ -171,8 +155,6 @@ LARK_SMTP_PORT=465
 LARK_SMTP_USER=your.name@yourcompany.com
 LARK_SMTP_PASSWORD=xxxxxxxxxxxxxxxxxxxx
 LARK_SMTP_FROM_NAME=Your Name
-
-LARK_BOT_WEBHOOK=https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 PREVIEW_RECEIVER_EMAIL=your.name@yourcompany.com
 SEND_DELAY_MIN=5

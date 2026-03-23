@@ -312,39 +312,6 @@ class BotService:
             "elements": elements,
         }
 
-    # ──────────────────────────────────
-    # 兼容：旧 webhook 发送（降级备用）
-    # ──────────────────────────────────
-
-    async def send_text(self, text: str) -> bool:
-        """
-        通过 webhook 发送纯文本（兼容旧流程）。
-        优先使用应用机器人 API，但需要 chat_id。
-        此方法保留为不知道 chat_id 时的降级方案。
-        """
-        webhook = settings.LARK_BOT_WEBHOOK
-        if not webhook:
-            logger.warning("Bot webhook not configured, text not sent")
-            return False
-
-        payload = {
-            "msg_type": "text",
-            "content": {"text": text},
-        }
-
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(webhook, json=payload, timeout=10)
-                data = resp.json()
-
-            if data.get("code") == 0 or data.get("StatusCode") == 0:
-                return True
-
-            logger.error("Webhook send failed: %s", data)
-            return False
-        except Exception as e:
-            logger.exception("Webhook send error: %s", e)
-            return False
 
 
 # 模块级单例
